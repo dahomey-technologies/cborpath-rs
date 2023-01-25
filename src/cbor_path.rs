@@ -5,9 +5,22 @@ use serde_cbor::Value;
 
 use crate::Error;
 
-pub struct CborPath(Vec<Segment>);
+pub struct CborPath(AbsolutePath);
 
 impl CborPath {
+    #[inline]
+    pub(crate) fn new(segments: Vec<Segment>) -> Self {
+        Self(AbsolutePath(segments))
+    }
+
+    pub fn evaluate<'a>(&self, value: &'a Value) -> Vec<&'a Value> {
+        self.0.evaluate(value)
+    }
+}
+
+pub(crate) struct AbsolutePath(Vec<Segment>);
+
+impl AbsolutePath {
     pub(crate) fn new(segments: Vec<Segment>) -> Self {
         Self(segments)
     }
@@ -53,14 +66,14 @@ impl RelativePath {
 
 pub(crate) enum Path {
     /// Absolute path (begining by '$')
-    Abs(CborPath),
+    Abs(AbsolutePath),
     /// Relative path (begining by '@')
     Rel(RelativePath),
 }
 
 impl Path {
     pub fn abs(segments: Vec<Segment>) -> Self {
-        Self::Abs(CborPath(segments))
+        Self::Abs(AbsolutePath(segments))
     }
 
     pub fn rel(segments: Vec<Segment>) -> Self {
