@@ -202,7 +202,7 @@ fn comparison() {
             "absent2".to_owned(),
         ))])),
     );
-    assert!(comparison.evaluate(&value));
+    assert!(comparison.evaluate(&value, &value));
 
     // $.absent1 <= $.absent2
     let comparison = ComparisonExpr(
@@ -214,7 +214,7 @@ fn comparison() {
             "absent2".to_owned(),
         ))])),
     );
-    assert!(comparison.evaluate(&value));
+    assert!(comparison.evaluate(&value, &value));
 
     // $.absent1 == "g"
     let comparison = ComparisonExpr(
@@ -224,7 +224,7 @@ fn comparison() {
         ComparisonOperator::Eq,
         Comparable::Value(Value::Text("g".to_owned())),
     );
-    assert!(!comparison.evaluate(&value));
+    assert!(!comparison.evaluate(&value, &value));
 
     // $.absent1 != $.absent2
     let comparison = ComparisonExpr(
@@ -236,7 +236,7 @@ fn comparison() {
             "absent2".to_owned(),
         ))])),
     );
-    assert!(!comparison.evaluate(&value));
+    assert!(!comparison.evaluate(&value, &value));
 
     // $.absent1 != "g"
     let comparison = ComparisonExpr(
@@ -246,7 +246,7 @@ fn comparison() {
         ComparisonOperator::Neq,
         Comparable::Value(Value::Text("g".to_owned())),
     );
-    assert!(comparison.evaluate(&value));
+    assert!(comparison.evaluate(&value, &value));
 
     // 1 <= 2
     let comparison = ComparisonExpr(
@@ -254,7 +254,7 @@ fn comparison() {
         ComparisonOperator::Lte,
         Comparable::Value(Value::Integer(2)),
     );
-    assert!(comparison.evaluate(&value));
+    assert!(comparison.evaluate(&value, &value));
 
     // 1 > 2
     let comparison = ComparisonExpr(
@@ -262,7 +262,7 @@ fn comparison() {
         ComparisonOperator::Gt,
         Comparable::Value(Value::Integer(2)),
     );
-    assert!(!comparison.evaluate(&value));
+    assert!(!comparison.evaluate(&value, &value));
 
     // 13 == "13"
     let comparison = ComparisonExpr(
@@ -270,7 +270,7 @@ fn comparison() {
         ComparisonOperator::Eq,
         Comparable::Value(Value::Text("13".to_owned())),
     );
-    assert!(!comparison.evaluate(&value));
+    assert!(!comparison.evaluate(&value, &value));
 
     // "a" <= "b"
     let comparison = ComparisonExpr(
@@ -278,7 +278,7 @@ fn comparison() {
         ComparisonOperator::Lte,
         Comparable::Value(Value::Text("b".to_owned())),
     );
-    assert!(comparison.evaluate(&value));
+    assert!(comparison.evaluate(&value, &value));
 
     // "a" > "b"
     let comparison = ComparisonExpr(
@@ -286,7 +286,7 @@ fn comparison() {
         ComparisonOperator::Gt,
         Comparable::Value(Value::Text("b".to_owned())),
     );
-    assert!(!comparison.evaluate(&value));
+    assert!(!comparison.evaluate(&value, &value));
 
     // $.obj == $.arr
     let comparison = ComparisonExpr(
@@ -298,7 +298,7 @@ fn comparison() {
             "arr".to_owned(),
         ))])),
     );
-    assert!(!comparison.evaluate(&value));
+    assert!(!comparison.evaluate(&value, &value));
 
     // $.obj != $.arr
     let comparison = ComparisonExpr(
@@ -310,7 +310,7 @@ fn comparison() {
             "arr".to_owned(),
         ))])),
     );
-    assert!(comparison.evaluate(&value));
+    assert!(comparison.evaluate(&value, &value));
 
     // $.obj == $.obj
     let comparison = ComparisonExpr(
@@ -322,7 +322,7 @@ fn comparison() {
             "obj".to_owned(),
         ))])),
     );
-    assert!(comparison.evaluate(&value));
+    assert!(comparison.evaluate(&value, &value));
 
     // $.obj != $.obj
     let comparison = ComparisonExpr(
@@ -334,7 +334,7 @@ fn comparison() {
             "obj".to_owned(),
         ))])),
     );
-    assert!(!comparison.evaluate(&value));
+    assert!(!comparison.evaluate(&value, &value));
 
     // $.arr == $.arr
     let comparison = ComparisonExpr(
@@ -346,7 +346,7 @@ fn comparison() {
             "arr".to_owned(),
         ))])),
     );
-    assert!(comparison.evaluate(&value));
+    assert!(comparison.evaluate(&value, &value));
 
     // $.arr != $.arr
     let comparison = ComparisonExpr(
@@ -358,7 +358,7 @@ fn comparison() {
             "arr".to_owned(),
         ))])),
     );
-    assert!(!comparison.evaluate(&value));
+    assert!(!comparison.evaluate(&value, &value));
 
     // 1 <= $.arr
     let comparison = ComparisonExpr(
@@ -368,7 +368,7 @@ fn comparison() {
             "arr".to_owned(),
         ))])),
     );
-    assert!(!comparison.evaluate(&value));
+    assert!(!comparison.evaluate(&value, &value));
 
     // 1 >= $.arr
     let comparison = ComparisonExpr(
@@ -378,7 +378,7 @@ fn comparison() {
             "arr".to_owned(),
         ))])),
     );
-    assert!(!comparison.evaluate(&value));
+    assert!(!comparison.evaluate(&value, &value));
 
     // 1 > $.arr
     let comparison = ComparisonExpr(
@@ -388,7 +388,7 @@ fn comparison() {
             "arr".to_owned(),
         ))])),
     );
-    assert!(!comparison.evaluate(&value));
+    assert!(!comparison.evaluate(&value, &value));
 
     // 1 < $.arr
     let comparison = ComparisonExpr(
@@ -398,7 +398,7 @@ fn comparison() {
             "arr".to_owned(),
         ))])),
     );
-    assert!(!comparison.evaluate(&value));
+    assert!(!comparison.evaluate(&value, &value));
 
     // true <= true
     let comparison = ComparisonExpr(
@@ -406,7 +406,7 @@ fn comparison() {
         ComparisonOperator::Lte,
         Comparable::Value(Value::Bool(true)),
     );
-    assert!(comparison.evaluate(&value));
+    assert!(comparison.evaluate(&value, &value));
 
     // true > true
     let comparison = ComparisonExpr(
@@ -414,7 +414,7 @@ fn comparison() {
         ComparisonOperator::Gt,
         Comparable::Value(Value::Bool(true)),
     );
-    assert!(!comparison.evaluate(&value));
+    assert!(!comparison.evaluate(&value, &value));
 }
 
 #[test]
@@ -832,7 +832,7 @@ fn logical() {
             Comparable::Value(Value::Integer(1)),
         ),
     );
-    assert!(!logical.evaluate(&Value::Integer(1)));
+    assert!(!logical.evaluate(&Value::Integer(1), &Value::Integer(1)));
 
     let logical = BooleanExpr::and(
         BooleanExpr::comparison(
@@ -846,7 +846,7 @@ fn logical() {
             Comparable::Value(Value::Integer(1)),
         ),
     );
-    assert!(!logical.evaluate(&Value::Integer(1)));
+    assert!(!logical.evaluate(&Value::Integer(1), &Value::Integer(1)));
 
     let logical = BooleanExpr::and(
         BooleanExpr::comparison(
@@ -860,7 +860,7 @@ fn logical() {
             Comparable::Value(Value::Integer(1)),
         ),
     );
-    assert!(!logical.evaluate(&Value::Integer(1)));
+    assert!(!logical.evaluate(&Value::Integer(1), &Value::Integer(1)));
 
     let logical = BooleanExpr::and(
         BooleanExpr::comparison(
@@ -874,7 +874,7 @@ fn logical() {
             Comparable::Value(Value::Integer(1)),
         ),
     );
-    assert!(logical.evaluate(&Value::Integer(1)));
+    assert!(logical.evaluate(&Value::Integer(1), &Value::Integer(1)));
 }
 
 #[test]
@@ -1233,22 +1233,64 @@ fn count() {
     // ["$", {"?": {"==" : [{"count": ["@", "*"]}, 2]}}]
     let cbor_path = CborPath::new(vec![Segment::Child(vec![Selector::filter(
         BooleanExpr::comparison(
-            Comparable::Function(Function::count(Path::rel(vec![
-                Segment::Child(vec![Selector::wildcard()])
-            ]))),
+            Comparable::Function(Function::count(Path::rel(vec![Segment::Child(vec![
+                Selector::wildcard(),
+            ])]))),
             ComparisonOperator::Eq,
-            Comparable::Value(Value::Integer(2))
-        )
+            Comparable::Value(Value::Integer(2)),
+        ),
     )])]);
     let result = cbor_path.evaluate(&value);
     assert_eq!(
-        vec![
-            &Value::Map(BTreeMap::from([
-                (Value::Text("j".to_owned()), Value::Integer(1)),
-                (Value::Text("k".to_owned()), Value::Integer(2)),
-            ])),
-        ],
+        vec![&Value::Map(BTreeMap::from([
+            (Value::Text("j".to_owned()), Value::Integer(1)),
+            (Value::Text("k".to_owned()), Value::Integer(2)),
+        ])),],
         result
     );
+}
 
+#[test]
+fn filter_root_current() {
+    // {
+    //   "a": {"k": 1},
+    //   "b": {"k": 3},
+    //   "c": 2
+    // }
+    let value = Value::Map(BTreeMap::from([
+        (
+            Value::Text("a".to_owned()),
+            Value::Map(BTreeMap::from([
+                (Value::Text("k".to_owned()), Value::Integer(1)),
+            ])),
+        ),
+        (
+            Value::Text("b".to_owned()),
+            Value::Map(BTreeMap::from([
+                (Value::Text("k".to_owned()), Value::Integer(3)),
+            ])),
+        ),
+        (
+            Value::Text("c".to_owned()),
+            Value::Integer(2)
+        ),
+    ]));
+
+    // ["$", {"..": {"?": {"<": [["@", "k"], ["$", "c""]]}}}]
+    let cbor_path = CborPath::new(vec![Segment::Descendant(vec![Selector::filter(
+        BooleanExpr::comparison(
+            Comparable::SingularPath(SingularPath::rel(vec![SingularSegment::key(Value::Text("k".to_owned()))])),
+            ComparisonOperator::Lt,
+            Comparable::SingularPath(SingularPath::abs(vec![SingularSegment::key(Value::Text("c".to_owned()))])),
+        ),
+    )])]);
+    let result = cbor_path.evaluate(&value);
+
+    println!("result: {result:?}");
+    assert_eq!(
+        vec![&Value::Map(BTreeMap::from([
+            (Value::Text("k".to_owned()), Value::Integer(1)),
+        ])),],
+        result
+    );
 }

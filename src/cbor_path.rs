@@ -12,18 +12,18 @@ impl CborPath {
         Self(segments)
     }
 
-    pub fn evaluate<'a>(&self, value: &'a Value) -> Vec<&'a Value> {
+    pub fn evaluate<'a>(&self, root: &'a Value) -> Vec<&'a Value> {
         let mut current_values: Vec<&'a Value>;
         let mut iter = self.0.iter();
 
         if let Some(first) = iter.next() {
-            current_values = first.evaluate(once(value));
+            current_values = first.evaluate(root, once(root));
         } else {
-            return vec![value];
+            return vec![root];
         }
 
         for segment in iter {
-            current_values = segment.evaluate(current_values.into_iter());
+            current_values = segment.evaluate(root, current_values.into_iter());
         }
 
         current_values
@@ -33,18 +33,18 @@ impl CborPath {
 pub(crate) struct RelativePath(Vec<Segment>);
 
 impl RelativePath {
-    pub fn evaluate<'a>(&self, value: &'a Value) -> Vec<&'a Value> {
+    pub fn evaluate<'a>(&self, root: &'a Value, current: &'a Value, ) -> Vec<&'a Value> {
         let mut current_values: Vec<&'a Value>;
         let mut iter = self.0.iter();
 
         if let Some(first) = iter.next() {
-            current_values = first.evaluate(once(value));
+            current_values = first.evaluate(root, once(current));
         } else {
-            return vec![value];
+            return vec![current];
         }
 
         for segment in iter {
-            current_values = segment.evaluate(current_values.into_iter());
+            current_values = segment.evaluate(root, current_values.into_iter());
         }
 
         current_values
@@ -67,10 +67,10 @@ impl Path {
         Self::Rel(RelativePath(segments))
     }
 
-    pub fn evaluate<'a>(&self, value: &'a Value) -> Vec<&'a Value> {
+    pub fn evaluate<'a>(&self, root: &'a Value, current: &'a Value) -> Vec<&'a Value> {
         match self {
-            Path::Abs(path) => path.evaluate(value),
-            Path::Rel(path) => path.evaluate(value),
+            Path::Abs(path) => path.evaluate(root),
+            Path::Rel(path) => path.evaluate(root, current),
         }
     }
 }
@@ -80,25 +80,25 @@ pub(crate) enum Segment {
     Descendant(Vec<Selector>),
 }
 impl Segment {
-    fn evaluate<'a, I>(&self, values: I) -> Vec<&'a Value>
+    fn evaluate<'a, I>(&self, root: &'a Value, current_values: I) -> Vec<&'a Value>
     where
         I: Iterator<Item = &'a Value> + Clone,
     {
         match self {
-            Segment::Child(selectors) => values
-                .flat_map(|value| selectors.iter().flat_map(|s| s.evaluate(value)))
+            Segment::Child(selectors) => current_values
+                .flat_map(|current| selectors.iter().flat_map(|s| s.evaluate(root, current)))
                 .collect(),
 
             Segment::Descendant(selectors) => {
                 let mut descendants = Vec::new();
-                for value in values {
+                for value in current_values {
                     descendants.push(value);
                     Self::fetch_descendants(&mut descendants, value);
                 }
 
                 descendants
                     .into_iter()
-                    .flat_map(|value| selectors.iter().flat_map(|s| s.evaluate(value)))
+                    .flat_map(|current| selectors.iter().flat_map(|s| s.evaluate(root, current)))
                     .collect()
             }
         }
@@ -157,13 +157,13 @@ impl Selector {
         Self::Filter(FilterSelector(boolean_expr))
     }
 
-    fn evaluate<'a>(&self, value: &'a Value) -> Vec<&'a Value> {
+    fn evaluate<'a>(&self, root: &'a Value, current: &'a Value) -> Vec<&'a Value> {
         match self {
-            Selector::Key(selector) => selector.evaluate(value),
-            Selector::Wildcard => WildcardSelector.evaluate(value),
-            Selector::Index(selector) => selector.evaluate(value),
-            Selector::Slice(selector) => selector.evaluate(value),
-            Selector::Filter(filter) => filter.evaluate(value),
+            Selector::Key(selector) => selector.evaluate(current),
+            Selector::Wildcard => WildcardSelector.evaluate(current),
+            Selector::Index(selector) => selector.evaluate(current),
+            Selector::Slice(selector) => selector.evaluate(current),
+            Selector::Filter(filter) => filter.evaluate(root, current),
         }
     }
 }
@@ -265,11 +265,11 @@ pub(crate) struct FilterSelector(BooleanExpr);
 
 impl FilterSelector {
     #[inline]
-    fn evaluate<'a>(&self, value: &'a Value) -> Vec<&'a Value> {
+    fn evaluate<'a>(&self, root: &'a Value, current: &'a Value) -> Vec<&'a Value> {
         let Self(boolean_expr) = &self;
-        match value {
-            Value::Array(a) => a.iter().filter(|v| boolean_expr.evaluate(v)).collect(),
-            Value::Map(m) => m.values().filter(|v| boolean_expr.evaluate(v)).collect(),
+        match current {
+            Value::Array(a) => a.iter().filter(|v| boolean_expr.evaluate(root, v)).collect(),
+            Value::Map(m) => m.values().filter(|v| boolean_expr.evaluate(root, v)).collect(),
             _ => vec![],
         }
     }
@@ -310,29 +310,29 @@ impl BooleanExpr {
         Self::Function(function)
     }
 
-    pub fn evaluate(&self, value: &Value) -> bool {
+    pub fn evaluate(&self, root: &Value, current: &Value) -> bool {
         match self {
-            BooleanExpr::Or(l, r) => l.evaluate(value) || r.evaluate(value),
-            BooleanExpr::And(l, r) => l.evaluate(value) && r.evaluate(value),
-            BooleanExpr::Not(e) => !e.evaluate(value),
-            BooleanExpr::Comparison(c) => c.evaluate(value),
-            BooleanExpr::Path(p) => !p.evaluate(value).is_empty(),
-            BooleanExpr::Function(f) => f.evaluate_as_boolean_expr(value),
+            BooleanExpr::Or(l, r) => l.evaluate(root, current) || r.evaluate(root, current),
+            BooleanExpr::And(l, r) => l.evaluate(root, current) && r.evaluate(root, current),
+            BooleanExpr::Not(e) => !e.evaluate(root, current),
+            BooleanExpr::Comparison(c) => c.evaluate(root, current),
+            BooleanExpr::Path(p) => !p.evaluate(root, current).is_empty(),
+            BooleanExpr::Function(f) => f.evaluate_as_boolean_expr(root, current),
         }
     }
 }
 
 pub(crate) struct ComparisonExpr(pub Comparable, pub ComparisonOperator, pub Comparable);
 impl ComparisonExpr {
-    pub fn evaluate(&self, value: &Value) -> bool {
+    pub fn evaluate(&self, root: &Value, current: &Value) -> bool {
         let ComparisonExpr(left, op, right) = &self;
         match op {
-            ComparisonOperator::Eq => left.equals(right, value),
-            ComparisonOperator::Neq => !left.equals(right, value),
-            ComparisonOperator::Gt => right.lesser_than(left, value),
-            ComparisonOperator::Gte => right.lesser_than(left, value) || left.equals(right, value),
-            ComparisonOperator::Lt => left.lesser_than(right, value),
-            ComparisonOperator::Lte => left.lesser_than(right, value) || left.equals(right, value),
+            ComparisonOperator::Eq => left.equals(right, root, current),
+            ComparisonOperator::Neq => !left.equals(right, root, current),
+            ComparisonOperator::Gt => right.lesser_than(left, root, current),
+            ComparisonOperator::Gte => right.lesser_than(left, root, current) || left.equals(right, root, current),
+            ComparisonOperator::Lt => left.lesser_than(right, root, current),
+            ComparisonOperator::Lte => left.lesser_than(right, root, current) || left.equals(right, root, current),
         }
     }
 }
@@ -345,9 +345,9 @@ pub(crate) enum Comparable {
 
 /// cf. https://www.ietf.org/archive/id/draft-ietf-jsonpath-base-09.html#name-filter-selector
 impl Comparable {
-    fn equals(&self, other: &Self, value: &Value) -> bool {
-        let v1 = self.evaluate(value);
-        let v2 = other.evaluate(value);
+    fn equals(&self, other: &Self, root: &Value, current: &Value) -> bool {
+        let v1 = self.evaluate(root, current);
+        let v2 = other.evaluate(root, current);
 
         match (&v1, &v2) {
             (None, None) => true,
@@ -356,9 +356,9 @@ impl Comparable {
         }
     }
 
-    fn lesser_than(&self, other: &Self, value: &Value) -> bool {
-        let v1 = self.evaluate(value);
-        let v2 = other.evaluate(value);
+    fn lesser_than(&self, other: &Self, root: &Value, current: &Value) -> bool {
+        let v1 = self.evaluate(root, current);
+        let v2 = other.evaluate(root, current);
 
         let v1 = v1.as_ref().map(|v| v.as_ref());
         let v2 = v2.as_ref().map(|v| v.as_ref());
@@ -372,12 +372,12 @@ impl Comparable {
         }
     }
 
-    fn evaluate<'a>(&'a self, value: &'a Value) -> Option<Cow<'a, Value>> {
+    fn evaluate<'a>(&'a self, root: &'a Value, current: &'a Value) -> Option<Cow<'a, Value>> {
         match self {
             Comparable::Value(value) => Some(Cow::Borrowed(value)),
-            Comparable::SingularPath(path) => path.evaluate(value),
+            Comparable::SingularPath(path) => path.evaluate(root, current),
             Comparable::Function(function) => {
-                function.evaluate_as_comparable(value).map(Cow::Owned)
+                function.evaluate_as_comparable(root, current).map(Cow::Owned)
             }
         }
     }
@@ -442,10 +442,10 @@ impl SingularPath {
     }
 
     #[inline]
-    pub fn evaluate<'a>(&self, value: &'a Value) -> Option<Cow<'a, Value>> {
+    pub fn evaluate<'a>(&self, root: &'a Value, current: &'a Value) -> Option<Cow<'a, Value>> {
         match self {
-            SingularPath::Abs(path) => path.evaluate(value).map(Cow::Borrowed),
-            SingularPath::Rel(path) => path.evaluate(value).map(Cow::Borrowed),
+            SingularPath::Abs(path) => path.evaluate(root).map(Cow::Borrowed),
+            SingularPath::Rel(path) => path.evaluate(current).map(Cow::Borrowed),
         }
     }
 }
@@ -529,10 +529,10 @@ impl Function {
         Ok(Self::Match(Box::new(comparable), Regex::new(regex)?))
     }
 
-    fn evaluate_as_boolean_expr(&self, value: &Value) -> bool {
+    fn evaluate_as_boolean_expr(&self, root: &Value, current: &Value) -> bool {
         match self {
             Function::Match(comparable, regex) => {
-                let value = comparable.evaluate(value);
+                let value = comparable.evaluate(root, current);
                 let value = value.as_ref().map(|v| v.as_ref());
                 match value {
                     Some(Value::Text(str)) => regex.is_match(str),
@@ -540,7 +540,7 @@ impl Function {
                 }
             }
             Function::Search(comparable, regex) => {
-                let value = comparable.evaluate(value);
+                let value = comparable.evaluate(root, current);
                 let value = value.as_ref().map(|v| v.as_ref());
                 match value {
                     Some(Value::Text(str)) => regex.is_match(str),
@@ -551,10 +551,10 @@ impl Function {
         }
     }
 
-    fn evaluate_as_comparable(&self, value: &Value) -> Option<Value> {
+    fn evaluate_as_comparable(&self, root: &Value, current: &Value) -> Option<Value> {
         match self {
             Function::Length(comparable) => {
-                let value = comparable.evaluate(value);
+                let value = comparable.evaluate(root, current);
                 let value = value.as_ref().map(|v| v.as_ref());
                 match value {
                     Some(Value::Array(a)) => Some(Value::Integer(a.len() as i128)),
@@ -565,7 +565,7 @@ impl Function {
                     _ => Some(Value::Integer(1)),
                 }
             }
-            Function::Count(path) => Some(Value::Integer(path.evaluate(value).len() as i128)),
+            Function::Count(path) => Some(Value::Integer(path.evaluate(root, current).len() as i128)),
             _ => None,
         }
     }
