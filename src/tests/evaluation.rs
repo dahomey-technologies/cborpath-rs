@@ -2,205 +2,153 @@ use crate::{
     BooleanExpr, CborPath, Comparable, ComparisonExpr, ComparisonOperator, Error, Function, Path,
     Segment, Selector, SingularPath, SingularSegment,
 };
-use serde_cbor::Value;
-use std::collections::BTreeMap;
+use ciborium::{cbor, value::Value};
 
 #[test]
 fn evaluate_root() {
-    let value = Value::Map(BTreeMap::from([(
-        Value::Text("k".to_owned()),
-        Value::Text("v".to_owned()),
-    )]));
+    let value = Value::Map(vec![("k".into(), "v".into())]);
 
     let cbor_path = CborPath::new(vec![]);
     let result = cbor_path.evaluate(&value);
 
-    assert_eq!(
-        vec![&Value::Map(BTreeMap::from([(
-            Value::Text("k".to_owned()),
-            Value::Text("v".to_owned()),
-        )]))],
-        result
-    );
+    assert_eq!(vec![&Value::Map(vec![("k".into(), "v".into(),)])], result);
 }
 
 #[test]
 fn evaluate_key() {
-    let value = Value::Map(BTreeMap::from([
+    let value = Value::Map(vec![
         (
-            Value::Text("o".to_owned()),
-            Value::Map(BTreeMap::from([(
-                Value::Text("j j".to_owned()),
-                Value::Map(BTreeMap::from([(
-                    Value::Text("k k".to_owned()),
-                    Value::Integer(3),
-                )])),
-            )])),
+            "o".into(),
+            Value::Map(vec![(
+                "j j".into(),
+                Value::Map(vec![("k k".into(), 3.into())]),
+            )]),
         ),
-        (
-            Value::Text("'".to_owned()),
-            Value::Map(BTreeMap::from([(
-                Value::Text("@".to_owned()),
-                Value::Integer(2),
-            )])),
-        ),
-    ]));
+        ("'".into(), Value::Map(vec![("@".into(), 2.into())])),
+    ]);
 
     let cbor_path = CborPath::new(vec![
-        Segment::Child(vec![Selector::key(Value::Text("o".to_owned()))]),
-        Segment::Child(vec![Selector::key(Value::Text("j j".to_owned()))]),
-        Segment::Child(vec![Selector::key(Value::Text("k k".to_owned()))]),
+        Segment::Child(vec![Selector::key("o".into())]),
+        Segment::Child(vec![Selector::key("j j".into())]),
+        Segment::Child(vec![Selector::key("k k".into())]),
     ]);
     let result = cbor_path.evaluate(&value);
-    assert_eq!(vec![&Value::Integer(3)], result);
+    assert_eq!(vec![&Value::from(3)], result);
 
     let cbor_path = CborPath::new(vec![
-        Segment::Child(vec![Selector::key(Value::Text("'".to_owned()))]),
-        Segment::Child(vec![Selector::key(Value::Text("@".to_owned()))]),
+        Segment::Child(vec![Selector::key("'".into())]),
+        Segment::Child(vec![Selector::key("@".into())]),
     ]);
     let result = cbor_path.evaluate(&value);
-    assert_eq!(vec![&Value::Integer(2)], result);
+    assert_eq!(vec![&Value::from(2)], result);
 }
 
 #[test]
-fn evaluate_wildcard() {
-    let value = Value::Map(BTreeMap::from([
-        (
-            Value::Text("o".to_owned()),
-            Value::Map(BTreeMap::from([
-                (Value::Text("j".to_owned()), Value::Integer(1)),
-                (Value::Text("k".to_owned()), Value::Integer(2)),
-            ])),
-        ),
-        (
-            Value::Text("a".to_owned()),
-            Value::Array(vec![Value::Integer(5), Value::Integer(3)]),
-        ),
-    ]));
+fn evaluate_wildcard() -> Result<(), Error> {
+    let value = cbor!(
+    { 
+        "o" => {"j" => 1, "k" => 2},
+        "a" => [5, 3]
+    })?;
 
     let cbor_path = CborPath::new(vec![Segment::Child(vec![Selector::Wildcard])]);
     let result = cbor_path.evaluate(&value);
     assert_eq!(
         vec![
-            &Value::Array(vec![Value::Integer(5), Value::Integer(3)]),
-            &Value::Map(BTreeMap::from([
-                (Value::Text("j".to_owned()), Value::Integer(1)),
-                (Value::Text("k".to_owned()), Value::Integer(2)),
-            ])),
+            &cbor!({"j" => 1, "k" => 2})?,
+            &cbor!([5, 3])?
         ],
         result
     );
 
     let cbor_path = CborPath::new(vec![
-        Segment::Child(vec![Selector::key(Value::Text("o".to_owned()))]),
+        Segment::Child(vec![Selector::key("o".into())]),
         Segment::Child(vec![Selector::Wildcard]),
     ]);
     let result = cbor_path.evaluate(&value);
-    assert_eq!(vec![&Value::Integer(1), &Value::Integer(2)], result);
+    assert_eq!(vec![&cbor!(1)?, &cbor!(2)?], result);
 
     let cbor_path = CborPath::new(vec![
-        Segment::Child(vec![Selector::key(Value::Text("a".to_owned()))]),
+        Segment::Child(vec![Selector::key("a".into())]),
         Segment::Child(vec![Selector::Wildcard]),
     ]);
     let result = cbor_path.evaluate(&value);
-    assert_eq!(vec![&Value::Integer(5), &Value::Integer(3)], result);
+    assert_eq!(vec![&cbor!(5)?, &cbor!(3)?], result);
+
+    Ok(())
 }
 
 #[test]
 fn evaluate_index() {
-    let value = Value::Array(vec![
-        Value::Text("a".to_owned()),
-        Value::Text("b".to_owned()),
-    ]);
+    let value = Value::Array(vec!["a".into(), "b".into()]);
 
     let cbor_path = CborPath::new(vec![Segment::Child(vec![Selector::index(1)])]);
     let result = cbor_path.evaluate(&value);
-    assert_eq!(vec![&Value::Text("b".to_owned())], result);
+    assert_eq!(vec![&Value::from("b")], result);
 
-    let value = Value::Array(vec![
-        Value::Text("a".to_owned()),
-        Value::Text("b".to_owned()),
-    ]);
+    let value = Value::Array(vec!["a".into(), "b".into()]);
 
     let cbor_path = CborPath::new(vec![Segment::Child(vec![Selector::index(-2)])]);
     let result = cbor_path.evaluate(&value);
-    assert_eq!(vec![&Value::Text("a".to_owned())], result);
+    assert_eq!(vec![&Value::from("a")], result);
 }
 
 #[test]
 fn evaluate_slice() {
     let value = Value::Array(vec![
-        Value::Text("a".to_owned()),
-        Value::Text("b".to_owned()),
-        Value::Text("c".to_owned()),
-        Value::Text("d".to_owned()),
-        Value::Text("e".to_owned()),
-        Value::Text("f".to_owned()),
-        Value::Text("g".to_owned()),
+        "a".into(),
+        "b".into(),
+        "c".into(),
+        "d".into(),
+        "e".into(),
+        "f".into(),
+        "g".into(),
     ]);
 
     let cbor_path = CborPath::new(vec![Segment::Child(vec![Selector::slice(1, 3, 1)])]);
     let result = cbor_path.evaluate(&value);
-    assert_eq!(
-        vec![&Value::Text("b".to_owned()), &Value::Text("c".to_owned())],
-        result
-    );
+    assert_eq!(vec![&Value::from("b"), &Value::from("c")], result);
 
     let cbor_path = CborPath::new(vec![Segment::Child(vec![Selector::slice(1, 5, 2)])]);
     let result = cbor_path.evaluate(&value);
-    assert_eq!(
-        vec![&Value::Text("b".to_owned()), &Value::Text("d".to_owned())],
-        result
-    );
+    assert_eq!(vec![&Value::from("b"), &Value::from("d")], result);
 
     let cbor_path = CborPath::new(vec![Segment::Child(vec![Selector::slice(5, 1, -2)])]);
     let result = cbor_path.evaluate(&value);
-    assert_eq!(
-        vec![&Value::Text("f".to_owned()), &Value::Text("d".to_owned())],
-        result
-    );
+    assert_eq!(vec![&Value::from("f"), &Value::from("d")], result);
 
     let cbor_path = CborPath::new(vec![Segment::Child(vec![Selector::slice(6, -8, -1)])]);
     let result = cbor_path.evaluate(&value);
     assert_eq!(
         vec![
-            &Value::Text("g".to_owned()),
-            &Value::Text("f".to_owned()),
-            &Value::Text("e".to_owned()),
-            &Value::Text("d".to_owned()),
-            &Value::Text("c".to_owned()),
-            &Value::Text("b".to_owned()),
-            &Value::Text("a".to_owned()),
+            &Value::from("g"),
+            &Value::from("f"),
+            &Value::from("e"),
+            &Value::from("d"),
+            &Value::from("c"),
+            &Value::from("b"),
+            &Value::from("a"),
         ],
         result
     );
 }
 
 #[test]
-fn comparison() {
-    let value = Value::Map(BTreeMap::from([
-        (
-            Value::Text("obj".to_owned()),
-            Value::Map(BTreeMap::from([(
-                Value::Text("x".to_owned()),
-                Value::Text("y".to_owned()),
-            )])),
-        ),
-        (
-            Value::Text("arr".to_owned()),
-            Value::Array(vec![Value::Integer(2), Value::Integer(3)]),
-        ),
-    ]));
+fn comparison() -> Result<(), Error> {
+    let value = Value::Map(vec![
+        ("obj".into(), Value::Map(vec![("x".into(), "y".into())])),
+        ("arr".into(), Value::Array(vec![2.into(), 3.into()])),
+    ]);
 
     // $.absent1 == $.absent2
     let comparison = ComparisonExpr(
-        Comparable::SingularPath(SingularPath::abs(vec![SingularSegment::key(Value::Text(
-            "absent1".to_owned(),
-        ))])),
+        Comparable::SingularPath(SingularPath::abs(vec![SingularSegment::key(cbor!(
+            "absent1"
+        )?)])),
         ComparisonOperator::Eq,
-        Comparable::SingularPath(SingularPath::abs(vec![SingularSegment::key(Value::Text(
-            "absent2".to_owned(),
-        ))])),
+        Comparable::SingularPath(SingularPath::abs(vec![SingularSegment::key(cbor!(
+            "absent2"
+        )?)])),
     );
     assert!(comparison.evaluate(&value, &value));
 
@@ -222,7 +170,7 @@ fn comparison() {
             "absent1".to_owned(),
         ))])),
         ComparisonOperator::Eq,
-        Comparable::Value(Value::Text("g".to_owned())),
+        Comparable::Value("g".into()),
     );
     assert!(!comparison.evaluate(&value, &value));
 
@@ -244,47 +192,47 @@ fn comparison() {
             "absent1".to_owned(),
         ))])),
         ComparisonOperator::Neq,
-        Comparable::Value(Value::Text("g".to_owned())),
+        Comparable::Value("g".into()),
     );
     assert!(comparison.evaluate(&value, &value));
 
     // 1 <= 2
     let comparison = ComparisonExpr(
-        Comparable::Value(Value::Integer(1)),
+        Comparable::Value(1.into()),
         ComparisonOperator::Lte,
-        Comparable::Value(Value::Integer(2)),
+        Comparable::Value(2.into()),
     );
     assert!(comparison.evaluate(&value, &value));
 
     // 1 > 2
     let comparison = ComparisonExpr(
-        Comparable::Value(Value::Integer(1)),
+        Comparable::Value(1.into()),
         ComparisonOperator::Gt,
-        Comparable::Value(Value::Integer(2)),
+        Comparable::Value(2.into()),
     );
     assert!(!comparison.evaluate(&value, &value));
 
     // 13 == "13"
     let comparison = ComparisonExpr(
-        Comparable::Value(Value::Integer(13)),
+        Comparable::Value(13.into()),
         ComparisonOperator::Eq,
-        Comparable::Value(Value::Text("13".to_owned())),
+        Comparable::Value("13".into()),
     );
     assert!(!comparison.evaluate(&value, &value));
 
     // "a" <= "b"
     let comparison = ComparisonExpr(
-        Comparable::Value(Value::Text("a".to_owned())),
+        Comparable::Value("a".into()),
         ComparisonOperator::Lte,
-        Comparable::Value(Value::Text("b".to_owned())),
+        Comparable::Value("b".into()),
     );
     assert!(comparison.evaluate(&value, &value));
 
     // "a" > "b"
     let comparison = ComparisonExpr(
-        Comparable::Value(Value::Text("a".to_owned())),
+        Comparable::Value("a".into()),
         ComparisonOperator::Gt,
-        Comparable::Value(Value::Text("b".to_owned())),
+        Comparable::Value("b".into()),
     );
     assert!(!comparison.evaluate(&value, &value));
 
@@ -362,7 +310,7 @@ fn comparison() {
 
     // 1 <= $.arr
     let comparison = ComparisonExpr(
-        Comparable::Value(Value::Integer(1)),
+        Comparable::Value(1.into()),
         ComparisonOperator::Lte,
         Comparable::SingularPath(SingularPath::abs(vec![SingularSegment::key(Value::Text(
             "arr".to_owned(),
@@ -372,7 +320,7 @@ fn comparison() {
 
     // 1 >= $.arr
     let comparison = ComparisonExpr(
-        Comparable::Value(Value::Integer(1)),
+        Comparable::Value(1.into()),
         ComparisonOperator::Gte,
         Comparable::SingularPath(SingularPath::abs(vec![SingularSegment::key(Value::Text(
             "arr".to_owned(),
@@ -382,7 +330,7 @@ fn comparison() {
 
     // 1 > $.arr
     let comparison = ComparisonExpr(
-        Comparable::Value(Value::Integer(1)),
+        Comparable::Value(1.into()),
         ComparisonOperator::Gt,
         Comparable::SingularPath(SingularPath::abs(vec![SingularSegment::key(Value::Text(
             "arr".to_owned(),
@@ -392,7 +340,7 @@ fn comparison() {
 
     // 1 < $.arr
     let comparison = ComparisonExpr(
-        Comparable::Value(Value::Integer(1)),
+        Comparable::Value(1.into()),
         ComparisonOperator::Lt,
         Comparable::SingularPath(SingularPath::abs(vec![SingularSegment::key(Value::Text(
             "arr".to_owned(),
@@ -415,6 +363,8 @@ fn comparison() {
         Comparable::Value(Value::Bool(true)),
     );
     assert!(!comparison.evaluate(&value, &value));
+
+    Ok(())
 }
 
 #[test]
@@ -425,117 +375,84 @@ fn filter() -> Result<(), Error> {
     //     "o": {"p": 1, "q": 2, "r": 3, "s": 5, "t": {"u": 6}},
     //     "e": "f"
     // }
-    let value = Value::Map(BTreeMap::from([
+    let value = Value::Map(vec![
         (
-            Value::Text("a".to_owned()),
+            "a".into(),
             Value::Array(vec![
-                Value::Integer(3),
-                Value::Integer(5),
-                Value::Integer(1),
-                Value::Integer(2),
-                Value::Integer(4),
-                Value::Integer(6),
-                Value::Map(BTreeMap::from([(
-                    Value::Text("b".to_owned()),
-                    Value::Text("j".to_owned()),
-                )])),
-                Value::Map(BTreeMap::from([(
-                    Value::Text("b".to_owned()),
-                    Value::Text("k".to_owned()),
-                )])),
-                Value::Map(BTreeMap::from([(
-                    Value::Text("b".to_owned()),
-                    Value::Map(BTreeMap::new()),
-                )])),
-                Value::Map(BTreeMap::from([(
-                    Value::Text("b".to_owned()),
-                    Value::Text("kilo".to_owned()),
-                )])),
+                3.into(),
+                5.into(),
+                1.into(),
+                2.into(),
+                4.into(),
+                6.into(),
+                Value::Map(vec![("b".into(), "j".into())]),
+                Value::Map(vec![("b".into(), "k".into())]),
+                Value::Map(vec![("b".into(), Value::Map(vec![]))]),
+                Value::Map(vec![("b".into(), "kilo".into())]),
             ]),
         ),
         (
-            Value::Text("o".to_owned()),
-            Value::Map(BTreeMap::from([
-                (Value::Text("p".to_owned()), Value::Integer(1)),
-                (Value::Text("q".to_owned()), Value::Integer(2)),
-                (Value::Text("r".to_owned()), Value::Integer(3)),
-                (Value::Text("s".to_owned()), Value::Integer(5)),
-                (
-                    Value::Text("t".to_owned()),
-                    Value::Map(BTreeMap::from([(
-                        Value::Text("u".to_owned()),
-                        Value::Integer(6),
-                    )])),
-                ),
-            ])),
+            "o".into(),
+            Value::Map(vec![
+                ("p".into(), 1.into()),
+                ("q".into(), 2.into()),
+                ("r".into(), 3.into()),
+                ("s".into(), 5.into()),
+                ("t".into(), Value::Map(vec![("u".into(), 6.into())])),
+            ]),
         ),
-        (Value::Text("e".to_owned()), Value::Text("f".to_owned())),
-    ]));
+        ("e".into(), "f".into()),
+    ]);
 
     // ["$", "a", {"?": {"==": [["@", "b"], "kilo"]}]
     let cbor_path = CborPath::new(vec![
-        Segment::Child(vec![Selector::key(Value::Text("a".to_owned()))]),
+        Segment::Child(vec![Selector::key("a".into())]),
         Segment::Child(vec![Selector::filter(BooleanExpr::comparison(
             Comparable::SingularPath(SingularPath::rel(vec![SingularSegment::key(Value::Text(
                 "b".to_owned(),
             ))])),
             ComparisonOperator::Eq,
-            Comparable::Value(Value::Text("kilo".to_owned())),
+            Comparable::Value("kilo".into()),
         ))]),
     ]);
     let result = cbor_path.evaluate(&value);
     // vec![{"b": "kilo"}]
     assert_eq!(
-        vec![&Value::Map(BTreeMap::from([(
-            Value::Text("b".to_owned()),
-            Value::Text("kilo".to_owned()),
-        )])),],
+        vec![&Value::Map(vec![("b".into(), "kilo".into(),)]),],
         result
     );
 
     // ["$", "a", {"?": {">": [["@"], 3]}]
     let cbor_path = CborPath::new(vec![
-        Segment::Child(vec![Selector::key(Value::Text("a".to_owned()))]),
+        Segment::Child(vec![Selector::key("a".into())]),
         Segment::Child(vec![Selector::filter(BooleanExpr::comparison(
             Comparable::SingularPath(SingularPath::rel(vec![])),
             ComparisonOperator::Gt,
-            Comparable::Value(Value::Integer(3)),
+            Comparable::Value(3.into()),
         ))]),
     ]);
     let result = cbor_path.evaluate(&value);
     // vec![5, 4, 6]
     assert_eq!(
-        vec![&Value::Integer(5), &Value::Integer(4), &Value::Integer(6)],
+        vec![&Value::from(5), &Value::from(4), &Value::from(6)],
         result
     );
 
     // ["$", "a", {"?": ["@", "b"]]
     let cbor_path = CborPath::new(vec![
-        Segment::Child(vec![Selector::key(Value::Text("a".to_owned()))]),
+        Segment::Child(vec![Selector::key("a".into())]),
         Segment::Child(vec![Selector::filter(BooleanExpr::path(Path::rel(vec![
-            Segment::Child(vec![Selector::key(Value::Text("b".to_owned()))]),
+            Segment::Child(vec![Selector::key("b".into())]),
         ])))]),
     ]);
     let result = cbor_path.evaluate(&value);
     // vec![{"b": "j"}, {"b": "k"}, {"b": {}}, {"b": "kilo"}]
     assert_eq!(
         vec![
-            &Value::Map(BTreeMap::from([(
-                Value::Text("b".to_owned()),
-                Value::Text("j".to_owned()),
-            )])),
-            &Value::Map(BTreeMap::from([(
-                Value::Text("b".to_owned()),
-                Value::Text("k".to_owned()),
-            )])),
-            &Value::Map(BTreeMap::from([(
-                Value::Text("b".to_owned()),
-                Value::Map(BTreeMap::new()),
-            )])),
-            &Value::Map(BTreeMap::from([(
-                Value::Text("b".to_owned()),
-                Value::Text("kilo".to_owned()),
-            )])),
+            &Value::Map(vec![("b".into(), "j".into(),)]),
+            &Value::Map(vec![("b".into(), "k".into(),)]),
+            &Value::Map(vec![("b".into(), Value::Map(vec![]),)]),
+            &Value::Map(vec![("b".into(), "kilo".into(),)]),
         ],
         result
     );
@@ -549,42 +466,24 @@ fn filter() -> Result<(), Error> {
     assert_eq!(
         vec![
             &Value::Array(vec![
-                Value::Integer(3),
-                Value::Integer(5),
-                Value::Integer(1),
-                Value::Integer(2),
-                Value::Integer(4),
-                Value::Integer(6),
-                Value::Map(BTreeMap::from([(
-                    Value::Text("b".to_owned()),
-                    Value::Text("j".to_owned()),
-                )])),
-                Value::Map(BTreeMap::from([(
-                    Value::Text("b".to_owned()),
-                    Value::Text("k".to_owned()),
-                )])),
-                Value::Map(BTreeMap::from([(
-                    Value::Text("b".to_owned()),
-                    Value::Map(BTreeMap::new()),
-                )])),
-                Value::Map(BTreeMap::from([(
-                    Value::Text("b".to_owned()),
-                    Value::Text("kilo".to_owned()),
-                )])),
+                3.into(),
+                5.into(),
+                1.into(),
+                2.into(),
+                4.into(),
+                6.into(),
+                Value::Map(vec![("b".into(), "j".into(),)]),
+                Value::Map(vec![("b".into(), "k".into(),)]),
+                Value::Map(vec![("b".into(), Value::Map(vec![]),)]),
+                Value::Map(vec![("b".into(), "kilo".into(),)]),
             ]),
-            &Value::Map(BTreeMap::from([
-                (Value::Text("p".to_owned()), Value::Integer(1)),
-                (Value::Text("q".to_owned()), Value::Integer(2)),
-                (Value::Text("r".to_owned()), Value::Integer(3)),
-                (Value::Text("s".to_owned()), Value::Integer(5)),
-                (
-                    Value::Text("t".to_owned()),
-                    Value::Map(BTreeMap::from([(
-                        Value::Text("u".to_owned()),
-                        Value::Integer(6),
-                    )])),
-                ),
-            ]))
+            &Value::Map(vec![
+                ("p".into(), 1.into()),
+                ("q".into(), 2.into()),
+                ("r".into(), 3.into()),
+                ("s".into(), 5.into()),
+                ("t".into(), Value::Map(vec![("u".into(), 6.into(),)]),),
+            ])
         ],
         result
     );
@@ -593,7 +492,7 @@ fn filter() -> Result<(), Error> {
     let cbor_path = CborPath::new(vec![Segment::Child(vec![Selector::filter(
         BooleanExpr::path(Path::rel(vec![Segment::Child(vec![Selector::filter(
             BooleanExpr::path(Path::rel(vec![Segment::Child(vec![Selector::key(
-                Value::Text("b".to_owned()),
+                "b".into(),
             )])])),
         )])])),
     )])]);
@@ -601,45 +500,33 @@ fn filter() -> Result<(), Error> {
     // vec![[3, 5, 1, 2, 4, 6, {"b": "j"}, {"b": "k"}, {"b": {}}, {"b": "kilo"}]]
     assert_eq!(
         vec![&Value::Array(vec![
-            Value::Integer(3),
-            Value::Integer(5),
-            Value::Integer(1),
-            Value::Integer(2),
-            Value::Integer(4),
-            Value::Integer(6),
-            Value::Map(BTreeMap::from([(
-                Value::Text("b".to_owned()),
-                Value::Text("j".to_owned()),
-            )])),
-            Value::Map(BTreeMap::from([(
-                Value::Text("b".to_owned()),
-                Value::Text("k".to_owned()),
-            )])),
-            Value::Map(BTreeMap::from([(
-                Value::Text("b".to_owned()),
-                Value::Map(BTreeMap::new()),
-            )])),
-            Value::Map(BTreeMap::from([(
-                Value::Text("b".to_owned()),
-                Value::Text("kilo".to_owned()),
-            )])),
+            3.into(),
+            5.into(),
+            1.into(),
+            2.into(),
+            4.into(),
+            6.into(),
+            Value::Map(vec![("b".into(), "j".into(),)]),
+            Value::Map(vec![("b".into(), "k".into(),)]),
+            Value::Map(vec![("b".into(), Value::Map(vec![]),)]),
+            Value::Map(vec![("b".into(), "kilo".into(),)]),
         ])],
         result
     );
 
     // ["$", "o", [{"?": {"<", [["@"], 3]}}, {"?": {"<", [["@"], 3]}}]]
     let cbor_path = CborPath::new(vec![
-        Segment::Child(vec![Selector::key(Value::Text("o".to_owned()))]),
+        Segment::Child(vec![Selector::key("o".into())]),
         Segment::Child(vec![
             Selector::filter(BooleanExpr::comparison(
                 Comparable::SingularPath(SingularPath::rel(vec![])),
                 ComparisonOperator::Lt,
-                Comparable::Value(Value::Integer(3)),
+                Comparable::Value(3.into()),
             )),
             Selector::filter(BooleanExpr::comparison(
                 Comparable::SingularPath(SingularPath::rel(vec![])),
                 ComparisonOperator::Lt,
-                Comparable::Value(Value::Integer(3)),
+                Comparable::Value(3.into()),
             )),
         ]),
     ]);
@@ -647,29 +534,27 @@ fn filter() -> Result<(), Error> {
     // vec![1, 2, 1, 2]
     assert_eq!(
         vec![
-            &Value::Integer(1),
-            &Value::Integer(2),
-            &Value::Integer(1),
-            &Value::Integer(2)
+            &Value::from(1),
+            &Value::from(2),
+            &Value::from(1),
+            &Value::from(2)
         ],
         result
     );
 
     // ["$", "a", {"?": {'||': [{"<": [["@"], 2]}, {"==": [["@", "b"], "k"]}]}}]
     let cbor_path = CborPath::new(vec![
-        Segment::Child(vec![Selector::key(Value::Text("a".to_owned()))]),
+        Segment::Child(vec![Selector::key("a".into())]),
         Segment::Child(vec![Selector::filter(BooleanExpr::or(
             BooleanExpr::comparison(
                 Comparable::SingularPath(SingularPath::rel(vec![])),
                 ComparisonOperator::Lt,
-                Comparable::Value(Value::Integer(2)),
+                Comparable::Value(2.into()),
             ),
             BooleanExpr::comparison(
-                Comparable::SingularPath(SingularPath::rel(vec![SingularSegment::key(
-                    Value::Text("b".to_owned()),
-                )])),
+                Comparable::SingularPath(SingularPath::rel(vec![SingularSegment::key("b".into())])),
                 ComparisonOperator::Eq,
-                Comparable::Value(Value::Text("k".to_owned())),
+                Comparable::Value("k".into()),
             ),
         ))]),
     ]);
@@ -677,23 +562,18 @@ fn filter() -> Result<(), Error> {
     // vec![1, {"b": "k"}]
     assert_eq!(
         vec![
-            &Value::Integer(1),
-            &Value::Map(BTreeMap::from([(
-                Value::Text("b".to_owned()),
-                Value::Text("k".to_owned()),
-            )])),
+            &Value::from(1),
+            &Value::Map(vec![("b".into(), "k".into(),)]),
         ],
         result
     );
 
     // ["$", "a", {"?": {"match": [["@", "b"], "[jk]"]}}]
     let cbor_path = CborPath::new(vec![
-        Segment::Child(vec![Selector::key(Value::Text("a".to_owned()))]),
+        Segment::Child(vec![Selector::key("a".into())]),
         Segment::Child(vec![Selector::filter(BooleanExpr::function(
             Function::_match(
-                Comparable::SingularPath(SingularPath::rel(vec![SingularSegment::key(
-                    Value::Text("b".to_owned()),
-                )])),
+                Comparable::SingularPath(SingularPath::rel(vec![SingularSegment::key("b".into())])),
                 "[jk]",
             )?,
         ))]),
@@ -702,26 +582,18 @@ fn filter() -> Result<(), Error> {
     // vec![{"b": "j"}, {"b": "k"}]
     assert_eq!(
         vec![
-            &Value::Map(BTreeMap::from([(
-                Value::Text("b".to_owned()),
-                Value::Text("j".to_owned()),
-            )])),
-            &Value::Map(BTreeMap::from([(
-                Value::Text("b".to_owned()),
-                Value::Text("k".to_owned()),
-            )])),
+            &Value::Map(vec![("b".into(), "j".into(),)]),
+            &Value::Map(vec![("b".into(), "k".into(),)]),
         ],
         result
     );
 
     // ["$", "a", {"?": {"search": [["@", "b"], "[jk]"]}}]
     let cbor_path = CborPath::new(vec![
-        Segment::Child(vec![Selector::key(Value::Text("a".to_owned()))]),
+        Segment::Child(vec![Selector::key("a".into())]),
         Segment::Child(vec![Selector::filter(BooleanExpr::function(
             Function::search(
-                Comparable::SingularPath(SingularPath::rel(vec![SingularSegment::key(
-                    Value::Text("b".to_owned()),
-                )])),
+                Comparable::SingularPath(SingularPath::rel(vec![SingularSegment::key("b".into())])),
                 "[jk]",
             )?,
         ))]),
@@ -730,67 +602,52 @@ fn filter() -> Result<(), Error> {
     // vec![{"b": "j"}, {"b": "k"}]
     assert_eq!(
         vec![
-            &Value::Map(BTreeMap::from([(
-                Value::Text("b".to_owned()),
-                Value::Text("j".to_owned()),
-            )])),
-            &Value::Map(BTreeMap::from([(
-                Value::Text("b".to_owned()),
-                Value::Text("k".to_owned()),
-            )])),
-            &Value::Map(BTreeMap::from([(
-                Value::Text("b".to_owned()),
-                Value::Text("kilo".to_owned()),
-            )])),
+            &Value::Map(vec![("b".into(), "j".into(),)]),
+            &Value::Map(vec![("b".into(), "k".into(),)]),
+            &Value::Map(vec![("b".into(), "kilo".into(),)]),
         ],
         result
     );
 
     // ["$", "o", {"?": {"&&": [{">": [["@"], 1]}, {"<": [["@", 4]]}]}}]
     let cbor_path = CborPath::new(vec![
-        Segment::Child(vec![Selector::key(Value::Text("o".to_owned()))]),
+        Segment::Child(vec![Selector::key("o".into())]),
         Segment::Child(vec![Selector::filter(BooleanExpr::and(
             BooleanExpr::comparison(
                 Comparable::SingularPath(SingularPath::rel(vec![])),
                 ComparisonOperator::Gt,
-                Comparable::Value(Value::Integer(1)),
+                Comparable::Value(1.into()),
             ),
             BooleanExpr::comparison(
                 Comparable::SingularPath(SingularPath::rel(vec![])),
                 ComparisonOperator::Lt,
-                Comparable::Value(Value::Integer(4)),
+                Comparable::Value(4.into()),
             ),
         ))]),
     ]);
     let result = cbor_path.evaluate(&value);
     // vec![2, 3]
-    assert_eq!(vec![&Value::Integer(2), &Value::Integer(3),], result);
+    assert_eq!(vec![&Value::from(2), &Value::from(3),], result);
 
     // ["$", "o", {"?": {"&&": [{">": [["@"], 1]}, {"<": [["@", 4]]}]}}]
     let cbor_path = CborPath::new(vec![
-        Segment::Child(vec![Selector::key(Value::Text("o".to_owned()))]),
+        Segment::Child(vec![Selector::key("o".into())]),
         Segment::Child(vec![Selector::filter(BooleanExpr::or(
             BooleanExpr::Path(Path::rel(vec![Segment::Child(vec![Selector::key(
-                Value::Text("u".to_owned()),
+                "u".into(),
             )])])),
             BooleanExpr::Path(Path::rel(vec![Segment::Child(vec![Selector::key(
-                Value::Text("x".to_owned()),
+                "x".into(),
             )])])),
         ))]),
     ]);
     let result = cbor_path.evaluate(&value);
     // vec![{"u", 6}]
-    assert_eq!(
-        vec![&Value::Map(BTreeMap::from([(
-            Value::Text("u".to_owned()),
-            Value::Integer(6),
-        )])),],
-        result
-    );
+    assert_eq!(vec![&Value::Map(vec![("u".into(), 6.into(),)]),], result);
 
     // ["$", "a", {"?": {"==": [["@", "b"], ["$", "x"]]}}]
     let cbor_path = CborPath::new(vec![
-        Segment::Child(vec![Selector::key(Value::Text("a".to_owned()))]),
+        Segment::Child(vec![Selector::key("a".into())]),
         Segment::Child(vec![Selector::filter(BooleanExpr::comparison(
             Comparable::SingularPath(SingularPath::rel(vec![SingularSegment::key(Value::Text(
                 "b".to_owned(),
@@ -805,12 +662,12 @@ fn filter() -> Result<(), Error> {
     // vec![{"u", 6}]
     assert_eq!(
         vec![
-            &Value::Integer(3),
-            &Value::Integer(5),
-            &Value::Integer(1),
-            &Value::Integer(2),
-            &Value::Integer(4),
-            &Value::Integer(6),
+            &Value::from(3),
+            &Value::from(5),
+            &Value::from(1),
+            &Value::from(2),
+            &Value::from(4),
+            &Value::from(6),
         ],
         result
     );
@@ -822,72 +679,72 @@ fn filter() -> Result<(), Error> {
 fn logical() {
     let logical = BooleanExpr::and(
         BooleanExpr::comparison(
-            Comparable::Value(Value::Integer(1)),
+            Comparable::Value(1.into()),
             ComparisonOperator::Eq,
-            Comparable::Value(Value::Integer(1)),
+            Comparable::Value(1.into()),
         ),
         BooleanExpr::comparison(
-            Comparable::Value(Value::Integer(1)),
+            Comparable::Value(1.into()),
             ComparisonOperator::Neq,
-            Comparable::Value(Value::Integer(1)),
+            Comparable::Value(1.into()),
         ),
     );
-    assert!(!logical.evaluate(&Value::Integer(1), &Value::Integer(1)));
+    assert!(!logical.evaluate(&Value::from(1), &Value::from(1)));
 
     let logical = BooleanExpr::and(
         BooleanExpr::comparison(
-            Comparable::Value(Value::Integer(1)),
+            Comparable::Value(1.into()),
             ComparisonOperator::Neq,
-            Comparable::Value(Value::Integer(1)),
+            Comparable::Value(1.into()),
         ),
         BooleanExpr::comparison(
-            Comparable::Value(Value::Integer(1)),
+            Comparable::Value(1.into()),
             ComparisonOperator::Eq,
-            Comparable::Value(Value::Integer(1)),
+            Comparable::Value(1.into()),
         ),
     );
-    assert!(!logical.evaluate(&Value::Integer(1), &Value::Integer(1)));
+    assert!(!logical.evaluate(&Value::from(1), &Value::from(1)));
 
     let logical = BooleanExpr::and(
         BooleanExpr::comparison(
-            Comparable::Value(Value::Integer(1)),
+            Comparable::Value(1.into()),
             ComparisonOperator::Neq,
-            Comparable::Value(Value::Integer(1)),
+            Comparable::Value(1.into()),
         ),
         BooleanExpr::comparison(
-            Comparable::Value(Value::Integer(1)),
+            Comparable::Value(1.into()),
             ComparisonOperator::Neq,
-            Comparable::Value(Value::Integer(1)),
+            Comparable::Value(1.into()),
         ),
     );
-    assert!(!logical.evaluate(&Value::Integer(1), &Value::Integer(1)));
+    assert!(!logical.evaluate(&Value::from(1), &Value::from(1)));
 
     let logical = BooleanExpr::and(
         BooleanExpr::comparison(
-            Comparable::Value(Value::Integer(1)),
+            Comparable::Value(1.into()),
             ComparisonOperator::Eq,
-            Comparable::Value(Value::Integer(1)),
+            Comparable::Value(1.into()),
         ),
         BooleanExpr::comparison(
-            Comparable::Value(Value::Integer(1)),
+            Comparable::Value(1.into()),
             ComparisonOperator::Eq,
-            Comparable::Value(Value::Integer(1)),
+            Comparable::Value(1.into()),
         ),
     );
-    assert!(logical.evaluate(&Value::Integer(1), &Value::Integer(1)));
+    assert!(logical.evaluate(&Value::from(1), &Value::from(1)));
 }
 
 #[test]
 fn child_segment() {
     // ["a", "b", "c", "d", "e", "f", "g"]
     let value = Value::Array(vec![
-        Value::Text("a".to_owned()),
-        Value::Text("b".to_owned()),
-        Value::Text("c".to_owned()),
-        Value::Text("d".to_owned()),
-        Value::Text("e".to_owned()),
-        Value::Text("f".to_owned()),
-        Value::Text("g".to_owned()),
+        "a".into(),
+        "b".into(),
+        "c".into(),
+        "d".into(),
+        "e".into(),
+        "f".into(),
+        "g".into(),
     ]);
 
     // ["$", [{"#": 0}, {"#": 3}]]
@@ -897,10 +754,7 @@ fn child_segment() {
     ])]);
     let result = cbor_path.evaluate(&value);
     // vec![{"a", "d"}]
-    assert_eq!(
-        vec![&Value::Text("a".to_owned()), &Value::Text("d".to_owned())],
-        result
-    );
+    assert_eq!(vec![&Value::from("a"), &Value::from("d")], result);
 
     // ["$", [{":": [0, 2, 1]}, {"#": 5}]]
     let cbor_path = CborPath::new(vec![Segment::Child(vec![
@@ -910,11 +764,7 @@ fn child_segment() {
     let result = cbor_path.evaluate(&value);
     // vec![{"a", "b", "f"}]
     assert_eq!(
-        vec![
-            &Value::Text("a".to_owned()),
-            &Value::Text("b".to_owned()),
-            &Value::Text("f".to_owned())
-        ],
+        vec![&Value::from("a"), &Value::from("b"), &Value::from("f")],
         result
     );
 
@@ -925,44 +775,17 @@ fn child_segment() {
     ])]);
     let result = cbor_path.evaluate(&value);
     // vec![{"a", "b", "f"}]
-    assert_eq!(
-        vec![&Value::Text("a".to_owned()), &Value::Text("a".to_owned())],
-        result
-    );
+    assert_eq!(vec![&Value::from("a"), &Value::from("a")], result);
 }
 
 #[test]
-fn descendant_segment() {
-    // {
-    //   "o": {"j": 1, "k": 2},
-    //   "a": [5, 3, [{"j": 4}, {"k": 6}]]
-    // }
-    let value = Value::Map(BTreeMap::from([
-        (
-            Value::Text("o".to_owned()),
-            Value::Map(BTreeMap::from([
-                (Value::Text("j".to_owned()), Value::Integer(1)),
-                (Value::Text("k".to_owned()), Value::Integer(2)),
-            ])),
-        ),
-        (
-            Value::Text("a".to_owned()),
-            Value::Array(vec![
-                Value::Integer(5),
-                Value::Integer(3),
-                Value::Array(vec![
-                    Value::Map(BTreeMap::from([(
-                        Value::Text("j".to_owned()),
-                        Value::Integer(4),
-                    )])),
-                    Value::Map(BTreeMap::from([(
-                        Value::Text("k".to_owned()),
-                        Value::Integer(6),
-                    )])),
-                ]),
-            ]),
-        ),
-    ]));
+fn descendant_segment() -> Result<(), Error> {
+    let value = cbor!(
+    {
+        "o" => {"j" => 1, "k" => 2},
+        "a" => [5, 3, [{"j" => 4}, {"k" => 6}]]
+    })
+    .unwrap();
 
     // ["$", {"..": "j"}]
     let cbor_path = CborPath::new(vec![Segment::Descendant(vec![Selector::key(Value::Text(
@@ -970,20 +793,14 @@ fn descendant_segment() {
     ))])]);
     let result = cbor_path.evaluate(&value);
     // vec![1, 4]
-    assert_eq!(vec![&Value::Integer(1), &Value::Integer(4)], result);
+    assert_eq!(vec![&cbor!(1)?, &cbor!(4)?], result);
 
     // ["$", {"..": {"#": 0}}]
     let cbor_path = CborPath::new(vec![Segment::Descendant(vec![Selector::index(0)])]);
     let result = cbor_path.evaluate(&value);
     // vec![5, {"j": 4}]
     assert_eq!(
-        vec![
-            &Value::Integer(5),
-            &Value::Map(BTreeMap::from([(
-                Value::Text("j".to_owned()),
-                Value::Integer(4)
-            ),]))
-        ],
+        vec![&Value::from(5), &Value::Map(vec![("j".into(), 4.into()),])],
         result
     );
 
@@ -993,48 +810,17 @@ fn descendant_segment() {
     // vec![[5, 3, [{"j": 4}, {"k": 6}]], {"j": 1, "k": 2}, 5, 3, [{"j": 4}, {"k": 6}], 1, 2, {"j": 4}, {"k": 6}, 4, 6]
     assert_eq!(
         vec![
-            &Value::Array(vec![
-                Value::Integer(5),
-                Value::Integer(3),
-                Value::Array(vec![
-                    Value::Map(BTreeMap::from([(
-                        Value::Text("j".to_owned()),
-                        Value::Integer(4),
-                    )])),
-                    Value::Map(BTreeMap::from([(
-                        Value::Text("k".to_owned()),
-                        Value::Integer(6),
-                    )])),
-                ]),
-            ]),
-            &Value::Map(BTreeMap::from([
-                (Value::Text("j".to_owned()), Value::Integer(1)),
-                (Value::Text("k".to_owned()), Value::Integer(2)),
-            ])),
-            &Value::Integer(5),
-            &Value::Integer(3),
-            &Value::Array(vec![
-                Value::Map(BTreeMap::from([(
-                    Value::Text("j".to_owned()),
-                    Value::Integer(4),
-                )])),
-                Value::Map(BTreeMap::from([(
-                    Value::Text("k".to_owned()),
-                    Value::Integer(6),
-                )])),
-            ]),
-            &Value::Integer(1),
-            &Value::Integer(2),
-            &Value::Map(BTreeMap::from([(
-                Value::Text("j".to_owned()),
-                Value::Integer(4),
-            )])),
-            &Value::Map(BTreeMap::from([(
-                Value::Text("k".to_owned()),
-                Value::Integer(6),
-            )])),
-            &Value::Integer(4),
-            &Value::Integer(6),
+            &cbor!({"j" => 1, "k" => 2})?,
+            &cbor!([5, 3, [{"j" => 4}, {"k" => 6}]])?,
+            &cbor!(1)?,
+            &cbor!(2)?,
+            &cbor!(5)?,
+            &cbor!(3)?,
+            &cbor!([{"j" => 4}, {"k" => 6}])?,
+            &cbor!({"j" => 4})?,
+            &cbor!({"k" => 6})?,
+            &cbor!(4)?,
+            &cbor!(6)?,
         ],
         result
     );
@@ -1046,66 +832,59 @@ fn descendant_segment() {
     let result = cbor_path.evaluate(&value);
     // vec![{"j": 1, "k": 2}]
     assert_eq!(
-        vec![&Value::Map(BTreeMap::from([
-            (Value::Text("j".to_owned()), Value::Integer(1)),
-            (Value::Text("k".to_owned()), Value::Integer(2)),
-        ])),],
+        vec![&Value::Map(vec![
+            ("j".into(), 1.into()),
+            ("k".into(), 2.into()),
+        ]),],
         result
     );
 
     // ["$", "o", {"..": ["*", "*"]}]
     let cbor_path = CborPath::new(vec![
-        Segment::Child(vec![Selector::key(Value::Text("o".to_owned()))]),
+        Segment::Child(vec![Selector::key("o".into())]),
         Segment::Descendant(vec![Selector::wildcard(), Selector::wildcard()]),
     ]);
     let result = cbor_path.evaluate(&value);
     // vec![1, 2, 1, 2]
     assert_eq!(
         vec![
-            &Value::Integer(1),
-            &Value::Integer(2),
-            &Value::Integer(1),
-            &Value::Integer(2),
+            &Value::from(1),
+            &Value::from(2),
+            &Value::from(1),
+            &Value::from(2),
         ],
         result
     );
 
     // ["$", "a", {"..": [0, 1]}]
     let cbor_path = CborPath::new(vec![
-        Segment::Child(vec![Selector::key(Value::Text("a".to_owned()))]),
+        Segment::Child(vec![Selector::key("a".into())]),
         Segment::Descendant(vec![Selector::index(0), Selector::index(1)]),
     ]);
     let result = cbor_path.evaluate(&value);
     // vec![5, 3, {"j": 4}, {"k": 6}]
     assert_eq!(
         vec![
-            &Value::Integer(5),
-            &Value::Integer(3),
-            &Value::Map(BTreeMap::from([(
-                Value::Text("j".to_owned()),
-                Value::Integer(4),
-            )])),
-            &Value::Map(BTreeMap::from([(
-                Value::Text("k".to_owned()),
-                Value::Integer(6),
-            )])),
+            &Value::from(5),
+            &Value::from(3),
+            &Value::Map(vec![("j".into(), 4.into(),)]),
+            &Value::Map(vec![("k".into(), 6.into(),)]),
         ],
         result
     );
+
+    Ok(())
 }
 
 #[test]
 fn null() {
     // {"a": null, "b": [null], "c": [{}], "null": 1}
-    let value = Value::Map(BTreeMap::from([
-        (Value::Text("a".to_owned()), Value::Null),
-        (Value::Text("b".to_owned()), Value::Array(vec![Value::Null])),
-        (
-            Value::Text("c".to_owned()),
-            Value::Array(vec![Value::Map(BTreeMap::new())]),
-        ),
-        (Value::Text("null".to_owned()), Value::Integer(1)),
-    ]));
+    let value = Value::Map(vec![
+        ("a".into(), Value::Null),
+        ("b".into(), Value::Array(vec![Value::Null])),
+        ("c".into(), Value::Array(vec![Value::Map(vec![])])),
+        ("null".into(), 1.into()),
+    ]);
 
     // ["$", "a"]
     let cbor_path = CborPath::new(vec![Segment::Child(vec![Selector::key(Value::Text(
@@ -1117,7 +896,7 @@ fn null() {
 
     // ["$", "a", {"#": 0}]
     let cbor_path = CborPath::new(vec![
-        Segment::Child(vec![Selector::key(Value::Text("a".to_owned()))]),
+        Segment::Child(vec![Selector::key("a".into())]),
         Segment::Child(vec![Selector::index(0)]),
     ]);
     let result = cbor_path.evaluate(&value);
@@ -1126,8 +905,8 @@ fn null() {
 
     // ["$", "a", "d"]
     let cbor_path = CborPath::new(vec![
-        Segment::Child(vec![Selector::key(Value::Text("a".to_owned()))]),
-        Segment::Child(vec![Selector::key(Value::Text("d".to_owned()))]),
+        Segment::Child(vec![Selector::key("a".into())]),
+        Segment::Child(vec![Selector::key("d".into())]),
     ]);
     let result = cbor_path.evaluate(&value);
     // vec![]
@@ -1135,7 +914,7 @@ fn null() {
 
     // ["$", "b", {"#": 0}]
     let cbor_path = CborPath::new(vec![
-        Segment::Child(vec![Selector::key(Value::Text("b".to_owned()))]),
+        Segment::Child(vec![Selector::key("b".into())]),
         Segment::Child(vec![Selector::index(0)]),
     ]);
     let result = cbor_path.evaluate(&value);
@@ -1144,7 +923,7 @@ fn null() {
 
     // ["$", "b", "*"]
     let cbor_path = CborPath::new(vec![
-        Segment::Child(vec![Selector::key(Value::Text("b".to_owned()))]),
+        Segment::Child(vec![Selector::key("b".into())]),
         Segment::Child(vec![Selector::wildcard()]),
     ]);
     let result = cbor_path.evaluate(&value);
@@ -1153,7 +932,7 @@ fn null() {
 
     // ["$", "b", {"?": "@"}]
     let cbor_path = CborPath::new(vec![
-        Segment::Child(vec![Selector::key(Value::Text("b".to_owned()))]),
+        Segment::Child(vec![Selector::key("b".into())]),
         Segment::Child(vec![Selector::filter(BooleanExpr::Path(Path::rel(vec![])))]),
     ]);
     let result = cbor_path.evaluate(&value);
@@ -1162,7 +941,7 @@ fn null() {
 
     // ["$", "b", {"?": {"==": ["@", null]}}]
     let cbor_path = CborPath::new(vec![
-        Segment::Child(vec![Selector::key(Value::Text("b".to_owned()))]),
+        Segment::Child(vec![Selector::key("b".into())]),
         Segment::Child(vec![Selector::filter(BooleanExpr::comparison(
             Comparable::SingularPath(SingularPath::rel(vec![])),
             ComparisonOperator::Eq,
@@ -1175,7 +954,7 @@ fn null() {
 
     // ["$", "b", {"?": {"==": [["@", "d"], null]}}]
     let cbor_path = CborPath::new(vec![
-        Segment::Child(vec![Selector::key(Value::Text("b".to_owned()))]),
+        Segment::Child(vec![Selector::key("b".into())]),
         Segment::Child(vec![Selector::filter(BooleanExpr::comparison(
             Comparable::SingularPath(SingularPath::rel(vec![SingularSegment::key(Value::Text(
                 "d".to_owned(),
@@ -1194,7 +973,7 @@ fn null() {
     ))])]);
     let result = cbor_path.evaluate(&value);
     // vec![1]
-    assert_eq!(vec![&Value::Integer(1)], result);
+    assert_eq!(vec![&Value::from(1)], result);
 }
 
 #[test]
@@ -1203,32 +982,23 @@ fn count() {
     //   "o": {"j": 1, "k": 2},
     //   "a": [5, 3, [{"j": 4}, {"k": 6}]]
     // }
-    let value = Value::Map(BTreeMap::from([
+    let value = Value::Map(vec![
         (
-            Value::Text("o".to_owned()),
-            Value::Map(BTreeMap::from([
-                (Value::Text("j".to_owned()), Value::Integer(1)),
-                (Value::Text("k".to_owned()), Value::Integer(2)),
-            ])),
+            "o".into(),
+            Value::Map(vec![("j".into(), 1.into()), ("k".into(), 2.into())]),
         ),
         (
-            Value::Text("a".to_owned()),
+            "a".into(),
             Value::Array(vec![
-                Value::Integer(5),
-                Value::Integer(3),
+                5.into(),
+                3.into(),
                 Value::Array(vec![
-                    Value::Map(BTreeMap::from([(
-                        Value::Text("j".to_owned()),
-                        Value::Integer(4),
-                    )])),
-                    Value::Map(BTreeMap::from([(
-                        Value::Text("k".to_owned()),
-                        Value::Integer(6),
-                    )])),
+                    Value::Map(vec![("j".into(), 4.into())]),
+                    Value::Map(vec![("k".into(), 6.into())]),
                 ]),
             ]),
         ),
-    ]));
+    ]);
 
     // ["$", {"?": {"==" : [{"count": ["@", "*"]}, 2]}}]
     let cbor_path = CborPath::new(vec![Segment::Child(vec![Selector::filter(
@@ -1237,15 +1007,15 @@ fn count() {
                 Selector::wildcard(),
             ])]))),
             ComparisonOperator::Eq,
-            Comparable::Value(Value::Integer(2)),
+            Comparable::Value(2.into()),
         ),
     )])]);
     let result = cbor_path.evaluate(&value);
     assert_eq!(
-        vec![&Value::Map(BTreeMap::from([
-            (Value::Text("j".to_owned()), Value::Integer(1)),
-            (Value::Text("k".to_owned()), Value::Integer(2)),
-        ])),],
+        vec![&Value::Map(vec![
+            ("j".into(), 1.into()),
+            ("k".into(), 2.into()),
+        ]),],
         result
     );
 }
@@ -1257,40 +1027,22 @@ fn filter_root_current() {
     //   "b": {"k": 3},
     //   "c": 2
     // }
-    let value = Value::Map(BTreeMap::from([
-        (
-            Value::Text("a".to_owned()),
-            Value::Map(BTreeMap::from([
-                (Value::Text("k".to_owned()), Value::Integer(1)),
-            ])),
-        ),
-        (
-            Value::Text("b".to_owned()),
-            Value::Map(BTreeMap::from([
-                (Value::Text("k".to_owned()), Value::Integer(3)),
-            ])),
-        ),
-        (
-            Value::Text("c".to_owned()),
-            Value::Integer(2)
-        ),
-    ]));
+    let value = Value::Map(vec![
+        ("a".into(), Value::Map(vec![("k".into(), 1.into())])),
+        ("b".into(), Value::Map(vec![("k".into(), 3.into())])),
+        ("c".into(), 2.into()),
+    ]);
 
     // ["$", {"..": {"?": {"<": [["@", "k"], ["$", "c""]]}}}]
     let cbor_path = CborPath::new(vec![Segment::Descendant(vec![Selector::filter(
         BooleanExpr::comparison(
-            Comparable::SingularPath(SingularPath::rel(vec![SingularSegment::key(Value::Text("k".to_owned()))])),
+            Comparable::SingularPath(SingularPath::rel(vec![SingularSegment::key("k".into())])),
             ComparisonOperator::Lt,
-            Comparable::SingularPath(SingularPath::abs(vec![SingularSegment::key(Value::Text("c".to_owned()))])),
+            Comparable::SingularPath(SingularPath::abs(vec![SingularSegment::key("c".into())])),
         ),
     )])]);
     let result = cbor_path.evaluate(&value);
 
     println!("result: {result:?}");
-    assert_eq!(
-        vec![&Value::Map(BTreeMap::from([
-            (Value::Text("k".to_owned()), Value::Integer(1)),
-        ])),],
-        result
-    );
+    assert_eq!(vec![&Value::Map(vec![("k".into(), 1.into()),]),], result);
 }

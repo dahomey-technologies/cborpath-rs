@@ -1,7 +1,7 @@
 use std::{borrow::Cow, cmp::Ordering, iter::once, vec};
 
+use ciborium::value::Value;
 use regex::Regex;
-use serde_cbor::Value;
 
 use crate::Error;
 
@@ -46,7 +46,7 @@ impl AbsolutePath {
 pub(crate) struct RelativePath(Vec<Segment>);
 
 impl RelativePath {
-    pub fn evaluate<'a>(&self, root: &'a Value, current: &'a Value, ) -> Vec<&'a Value> {
+    pub fn evaluate<'a>(&self, root: &'a Value, current: &'a Value) -> Vec<&'a Value> {
         let mut current_values: Vec<&'a Value>;
         let mut iter = self.0.iter();
 
@@ -126,8 +126,8 @@ impl Segment {
                 }
             }
             Value::Map(m) => {
-                descendants.extend(m.values());
-                for value in m.values() {
+                descendants.extend(m.iter().map(|e| &e.1));
+                for value in m.iter().map(|e| &e.1) {
                     Self::fetch_descendants(descendants, value);
                 }
             }
@@ -194,7 +194,9 @@ impl KeySelector {
     fn evaluate_single<'a>(&self, value: &'a Value) -> Option<&'a Value> {
         let Self(key) = &self;
         match value {
-            Value::Map(map) => map.get(key),
+            Value::Map(map) => map
+                .iter()
+                .find_map(|(k, v)| if k == key { Some(v) } else { None }),
             _ => None,
         }
     }
@@ -205,7 +207,7 @@ pub(crate) struct WildcardSelector;
 impl WildcardSelector {
     fn evaluate<'a>(&self, value: &'a Value) -> Vec<&'a Value> {
         match value {
-            Value::Map(map) => map.values().collect(),
+            Value::Map(map) => map.iter().map(|(_, v)| v).collect(),
             Value::Array(array) => array.iter().collect(),
             _ => vec![],
         }
@@ -281,8 +283,20 @@ impl FilterSelector {
     fn evaluate<'a>(&self, root: &'a Value, current: &'a Value) -> Vec<&'a Value> {
         let Self(boolean_expr) = &self;
         match current {
-            Value::Array(a) => a.iter().filter(|v| boolean_expr.evaluate(root, v)).collect(),
-            Value::Map(m) => m.values().filter(|v| boolean_expr.evaluate(root, v)).collect(),
+            Value::Array(a) => a
+                .iter()
+                .filter(|v| boolean_expr.evaluate(root, v))
+                .collect(),
+            Value::Map(m) => m
+                .iter()
+                .filter_map(|(_, v)| {
+                    if boolean_expr.evaluate(root, v) {
+                        Some(v)
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
             _ => vec![],
         }
     }
@@ -343,9 +357,13 @@ impl ComparisonExpr {
             ComparisonOperator::Eq => left.equals(right, root, current),
             ComparisonOperator::Neq => !left.equals(right, root, current),
             ComparisonOperator::Gt => right.lesser_than(left, root, current),
-            ComparisonOperator::Gte => right.lesser_than(left, root, current) || left.equals(right, root, current),
+            ComparisonOperator::Gte => {
+                right.lesser_than(left, root, current) || left.equals(right, root, current)
+            }
             ComparisonOperator::Lt => left.lesser_than(right, root, current),
-            ComparisonOperator::Lte => left.lesser_than(right, root, current) || left.equals(right, root, current),
+            ComparisonOperator::Lte => {
+                left.lesser_than(right, root, current) || left.equals(right, root, current)
+            }
         }
     }
 }
@@ -389,9 +407,9 @@ impl Comparable {
         match self {
             Comparable::Value(value) => Some(Cow::Borrowed(value)),
             Comparable::SingularPath(path) => path.evaluate(root, current),
-            Comparable::Function(function) => {
-                function.evaluate_as_comparable(root, current).map(Cow::Owned)
-            }
+            Comparable::Function(function) => function
+                .evaluate_as_comparable(root, current)
+                .map(Cow::Owned),
         }
     }
 }
@@ -409,8 +427,11 @@ fn value_equals(v1: &Value, v2: &Value) -> bool {
         }
         (Value::Map(m1), Value::Map(m2)) => {
             m1.len() == m2.len()
-                && m1.iter().all(|(k, v1)| {
-                    if let Some(v2) = m2.get(k) {
+                && m1.iter().all(|(key, v1)| {
+                    if let Some(v2) = m2
+                        .iter()
+                        .find_map(|(k, v)| if k == key { Some(v) } else { None })
+                    {
                         value_equals(v1, v2)
                     } else {
                         false
@@ -570,15 +591,17 @@ impl Function {
                 let value = comparable.evaluate(root, current);
                 let value = value.as_ref().map(|v| v.as_ref());
                 match value {
-                    Some(Value::Array(a)) => Some(Value::Integer(a.len() as i128)),
-                    Some(Value::Map(m)) => Some(Value::Integer(m.len() as i128)),
-                    Some(Value::Text(t)) => Some(Value::Integer(t.len() as i128)),
-                    Some(Value::Bytes(b)) => Some(Value::Integer(b.len() as i128)),
+                    Some(Value::Array(a)) => Some(Value::Integer(a.len().into())),
+                    Some(Value::Map(m)) => Some(Value::Integer(m.len().into())),
+                    Some(Value::Text(t)) => Some(Value::Integer(t.len().into())),
+                    Some(Value::Bytes(b)) => Some(Value::Integer(b.len().into())),
                     None => None,
-                    _ => Some(Value::Integer(1)),
+                    _ => Some(Value::Integer(1.into())),
                 }
             }
-            Function::Count(path) => Some(Value::Integer(path.evaluate(root, current).len() as i128)),
+            Function::Count(path) => {
+                Some(Value::Integer(path.evaluate(root, current).len().into()))
+            }
             _ => None,
         }
     }

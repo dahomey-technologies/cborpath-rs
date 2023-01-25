@@ -16,3 +16,9 @@ impl From<regex::Error> for Error {
         Error::Parser(format!("invalid regex: {e}"))
     }
 }
+
+impl From<ciborium::value::Error> for Error {
+    fn from(e: ciborium::value::Error) -> Self {
+        Error::Parser(e.to_string())
+    } 
+}
