@@ -168,7 +168,7 @@ impl Selector {
     }
 }
 
-pub struct KeySelector(Value);
+pub(crate) struct KeySelector(Value);
 
 impl KeySelector {
     fn evaluate<'a>(&self, value: &'a Value) -> Vec<&'a Value> {
@@ -187,7 +187,7 @@ impl KeySelector {
     }
 }
 
-pub struct WildcardSelector;
+pub(crate) struct WildcardSelector;
 
 impl WildcardSelector {
     fn evaluate<'a>(&self, value: &'a Value) -> Vec<&'a Value> {
@@ -199,7 +199,7 @@ impl WildcardSelector {
     }
 }
 
-pub struct IndexSelector(isize);
+pub(crate) struct IndexSelector(isize);
 
 impl IndexSelector {
     fn evaluate<'a>(&self, value: &'a Value) -> Vec<&'a Value> {
@@ -221,7 +221,7 @@ impl IndexSelector {
     }
 }
 
-pub struct SliceSelector(isize, isize, isize);
+pub(crate) struct SliceSelector(isize, isize, isize);
 
 impl SliceSelector {
     fn evaluate<'a>(&self, value: &'a Value) -> Vec<&'a Value> {

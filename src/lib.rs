@@ -1,3 +1,9 @@
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
+/*!
+cborpath is a CborPath engine written in Rust.
+*/
+
 mod error;
 mod cbor_path;
 
