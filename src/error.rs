@@ -1,8 +1,12 @@
-use std::str;
+use std::{
+    fmt::{self, Display},
+    str,
+};
 
 #[derive(Debug)]
 pub enum Error {
     Parser(String),
+    Serialization(String)
 }
 
 impl From<str::Utf8Error> for Error {
@@ -20,5 +24,11 @@ impl From<regex::Error> for Error {
 impl From<ciborium::value::Error> for Error {
     fn from(e: ciborium::value::Error) -> Self {
         Error::Parser(e.to_string())
-    } 
+    }
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("{:?}", self))
+    }
 }

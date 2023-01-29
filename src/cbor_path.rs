@@ -1,16 +1,24 @@
-use std::{borrow::Cow, cmp::Ordering, iter::once, vec};
-
-use ciborium::value::Value;
-use regex::Regex;
-
 use crate::Error;
+use ciborium::{de::from_reader, value::Value};
+use regex::Regex;
+use serde::Deserialize;
+use std::{borrow::Cow, cmp::Ordering, iter::once, vec, fmt};
 
+#[derive(Debug, PartialEq, Deserialize)]
 pub struct CborPath(AbsolutePath);
 
 impl CborPath {
     #[inline]
+    #[allow(dead_code)]
     pub(crate) fn new(segments: Vec<Segment>) -> Self {
         Self(AbsolutePath(segments))
+    }
+
+    pub fn from_reader<R: ciborium_io::Read>(reader: R) -> Result<Self, Error>
+    where
+        R::Error: fmt::Debug,
+    {
+        from_reader(reader).map_err(|e| Error::Serialization(e.to_string()))
     }
 
     pub fn evaluate<'a>(&self, value: &'a Value) -> Vec<&'a Value> {
@@ -18,6 +26,7 @@ impl CborPath {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub(crate) struct AbsolutePath(Vec<Segment>);
 
 impl AbsolutePath {
@@ -43,9 +52,14 @@ impl AbsolutePath {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub(crate) struct RelativePath(Vec<Segment>);
 
 impl RelativePath {
+    pub(crate) fn new(segments: Vec<Segment>) -> Self {
+        Self(segments)
+    }
+
     pub fn evaluate<'a>(&self, root: &'a Value, current: &'a Value) -> Vec<&'a Value> {
         let mut current_values: Vec<&'a Value>;
         let mut iter = self.0.iter();
@@ -64,6 +78,7 @@ impl RelativePath {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub(crate) enum Path {
     /// Absolute path (begining by '$')
     Abs(AbsolutePath),
@@ -88,6 +103,7 @@ impl Path {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub(crate) enum Segment {
     Child(Vec<Selector>),
     Descendant(Vec<Selector>),
@@ -136,6 +152,7 @@ impl Segment {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub(crate) enum Selector {
     /// Value
     Key(KeySelector),
@@ -158,14 +175,17 @@ impl Selector {
         Self::Wildcard
     }
 
+    #[allow(dead_code)]
     pub fn index(index: isize) -> Self {
         Self::Index(IndexSelector(index))
     }
 
+    #[allow(dead_code)]
     pub fn slice(start: isize, end: isize, step: isize) -> Self {
         Self::Slice(SliceSelector(start, end, step))
     }
 
+    #[allow(dead_code)]
     pub fn filter(boolean_expr: BooleanExpr) -> Self {
         Self::Filter(FilterSelector(boolean_expr))
     }
@@ -181,6 +201,7 @@ impl Selector {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub(crate) struct KeySelector(Value);
 
 impl KeySelector {
@@ -202,6 +223,7 @@ impl KeySelector {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct WildcardSelector;
 
 impl WildcardSelector {
@@ -214,6 +236,7 @@ impl WildcardSelector {
     }
 }
 
+#[derive(Debug, PartialEq, Deserialize)]
 pub(crate) struct IndexSelector(isize);
 
 impl IndexSelector {
@@ -236,6 +259,7 @@ impl IndexSelector {
     }
 }
 
+#[derive(Debug, PartialEq, Deserialize)]
 pub(crate) struct SliceSelector(isize, isize, isize);
 
 impl SliceSelector {
@@ -276,6 +300,7 @@ impl SliceSelector {
     }
 }
 
+#[derive(Debug, PartialEq, Deserialize)]
 pub(crate) struct FilterSelector(BooleanExpr);
 
 impl FilterSelector {
@@ -302,6 +327,7 @@ impl FilterSelector {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub(crate) enum BooleanExpr {
     Or(Box<BooleanExpr>, Box<BooleanExpr>),
     And(Box<BooleanExpr>, Box<BooleanExpr>),
@@ -349,6 +375,7 @@ impl BooleanExpr {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub(crate) struct ComparisonExpr(pub Comparable, pub ComparisonOperator, pub Comparable);
 impl ComparisonExpr {
     pub fn evaluate(&self, root: &Value, current: &Value) -> bool {
@@ -368,6 +395,7 @@ impl ComparisonExpr {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub(crate) enum Comparable {
     Value(Value),
     SingularPath(SingularPath),
@@ -450,6 +478,7 @@ fn value_equals(v1: &Value, v2: &Value) -> bool {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub(crate) enum ComparisonOperator {
     Eq,
     Neq,
@@ -459,10 +488,11 @@ pub(crate) enum ComparisonOperator {
     Lte,
 }
 
+#[derive(Debug, PartialEq)]
 pub(crate) enum SingularPath {
-    /// Absolute singular path (begining by '$')
+    /// Absolute singular path (beginning by '$')
     Abs(AbsSingularPath),
-    /// Relative singular path (begining by '@')
+    /// Relative singular path (beginning by '@')
     Rel(RelSingularPath),
 }
 
@@ -484,6 +514,7 @@ impl SingularPath {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub(crate) struct AbsSingularPath(Vec<SingularSegment>);
 
 impl AbsSingularPath {
@@ -498,6 +529,7 @@ impl AbsSingularPath {
         Some(current_value)
     }
 }
+#[derive(Debug, PartialEq)]
 pub(crate) struct RelSingularPath(Vec<SingularSegment>);
 
 impl RelSingularPath {
@@ -513,6 +545,7 @@ impl RelSingularPath {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub(crate) enum SingularSegment {
     Key(KeySelector),
     Index(IndexSelector),
@@ -536,11 +569,24 @@ impl SingularSegment {
     }
 }
 
+#[derive(Debug)]
 pub(crate) enum Function {
     Length(Box<Comparable>),
     Count(Path),
     Match(Box<Comparable>, Regex),
     Search(Box<Comparable>, Regex),
+}
+
+impl PartialEq for Function {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Length(l0), Self::Length(r0)) => l0 == r0,
+            (Self::Count(l0), Self::Count(r0)) => l0 == r0,
+            (Self::Match(l0, l1), Self::Match(r0, r1)) => l0 == r0 && l1.as_str() == r1.as_str(),
+            (Self::Search(l0, l1), Self::Search(r0, r1)) => l0 == r0 && l1.as_str() == r1.as_str(),
+            _ => false,
+        }
+    }
 }
 
 impl Function {
@@ -560,7 +606,7 @@ impl Function {
     }
 
     pub fn search(comparable: Comparable, regex: &str) -> Result<Self, Error> {
-        Ok(Self::Match(Box::new(comparable), Regex::new(regex)?))
+        Ok(Self::Search(Box::new(comparable), Regex::new(regex)?))
     }
 
     fn evaluate_as_boolean_expr(&self, root: &Value, current: &Value) -> bool {

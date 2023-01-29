@@ -6,6 +6,7 @@ cborpath is a CborPath engine written in Rust.
 
 mod error;
 mod cbor_path;
+mod deserialization;
 
 pub use error::*;
 pub use cbor_path::*;
