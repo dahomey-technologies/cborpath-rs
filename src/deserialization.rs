@@ -214,7 +214,7 @@ impl<'de> Deserialize<'de> for SegmentForDeserialization {
                     _ => Err(de::Error::invalid_value(
                         de::Unexpected::Str(&identifier),
                         &format!(
-                            "`{INDEX_IDENTIFIER}`, `{SLICE_IDENTIFIER}`, or `{FILTER_IDENTIFIER}`"
+                            "`{DESCENDANT_SEGMENT_IDENTIFIER}`, `{INDEX_IDENTIFIER}`, `{SLICE_IDENTIFIER}`, or `{FILTER_IDENTIFIER}`"
                         )
                         .as_str(),
                     )),
@@ -616,7 +616,7 @@ impl<'de> Deserialize<'de> for SingularSegment {
                     INDEX_IDENTIFIER => Ok(SingularSegment::index(map.next_value()?)),
                     _ => Err(de::Error::invalid_value(
                         de::Unexpected::Str(&identifier),
-                        &format!("`{INDEX_IDENTIFIER}` or `{SLICE_IDENTIFIER}`").as_str(),
+                        &format!("`{INDEX_IDENTIFIER}`").as_str(),
                     )),
                 }
             }

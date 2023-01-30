@@ -1,8 +1,8 @@
-use crate::Error;
+use crate::{parsing::parse_cbor_path, Error};
 use ciborium::{de::from_reader, value::Value};
 use regex::Regex;
 use serde::Deserialize;
-use std::{borrow::Cow, cmp::Ordering, iter::once, vec, fmt};
+use std::{borrow::Cow, cmp::Ordering, fmt, iter::once, vec};
 
 #[derive(Debug, PartialEq, Deserialize)]
 pub struct CborPath(AbsolutePath);
@@ -14,6 +14,7 @@ impl CborPath {
         Self(AbsolutePath(segments))
     }
 
+    #[inline]
     pub fn from_reader<R: ciborium_io::Read>(reader: R) -> Result<Self, Error>
     where
         R::Error: fmt::Debug,
@@ -21,6 +22,12 @@ impl CborPath {
         from_reader(reader).map_err(|e| Error::Serialization(e.to_string()))
     }
 
+    #[inline]
+    pub fn from_value(value: &Value) -> Result<Self, Error> {
+        parse_cbor_path(value)
+    }
+
+    #[inline]
     pub fn evaluate<'a>(&self, value: &'a Value) -> Vec<&'a Value> {
         self.0.evaluate(value)
     }
@@ -573,8 +580,7 @@ impl SingularSegment {
 pub(crate) enum Function {
     Length(Box<Comparable>),
     Count(Path),
-    Match(Box<Comparable>, Regex),
-    Search(Box<Comparable>, Regex),
+    Regex(Box<Comparable>, Regex),
 }
 
 impl PartialEq for Function {
@@ -582,8 +588,7 @@ impl PartialEq for Function {
         match (self, other) {
             (Self::Length(l0), Self::Length(r0)) => l0 == r0,
             (Self::Count(l0), Self::Count(r0)) => l0 == r0,
-            (Self::Match(l0, l1), Self::Match(r0, r1)) => l0 == r0 && l1.as_str() == r1.as_str(),
-            (Self::Search(l0, l1), Self::Search(r0, r1)) => l0 == r0 && l1.as_str() == r1.as_str(),
+            (Self::Regex(l0, l1), Self::Regex(r0, r1)) => l0 == r0 && l1.as_str() == r1.as_str(),
             _ => false,
         }
     }
@@ -599,27 +604,19 @@ impl Function {
     }
 
     pub fn _match(comparable: Comparable, regex: &str) -> Result<Self, Error> {
-        Ok(Self::Match(
+        Ok(Self::Regex(
             Box::new(comparable),
             Regex::new(&format!("^{regex}$"))?,
         ))
     }
 
     pub fn search(comparable: Comparable, regex: &str) -> Result<Self, Error> {
-        Ok(Self::Search(Box::new(comparable), Regex::new(regex)?))
+        Ok(Self::Regex(Box::new(comparable), Regex::new(regex)?))
     }
 
     fn evaluate_as_boolean_expr(&self, root: &Value, current: &Value) -> bool {
         match self {
-            Function::Match(comparable, regex) => {
-                let value = comparable.evaluate(root, current);
-                let value = value.as_ref().map(|v| v.as_ref());
-                match value {
-                    Some(Value::Text(str)) => regex.is_match(str),
-                    _ => false,
-                }
-            }
-            Function::Search(comparable, regex) => {
+            Function::Regex(comparable, regex) => {
                 let value = comparable.evaluate(root, current);
                 let value = value.as_ref().map(|v| v.as_ref());
                 match value {
