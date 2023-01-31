@@ -1,5 +1,5 @@
 use crate::{parsing::parse_cbor_path, Error};
-use ciborium::{de::from_reader, value::Value};
+use ciborium::{de::from_reader, value::Value, ser::into_writer};
 use regex::Regex;
 use serde::Deserialize;
 use std::{borrow::Cow, cmp::Ordering, fmt, iter::once, vec};
@@ -30,6 +30,19 @@ impl CborPath {
     #[inline]
     pub fn evaluate<'a>(&self, value: &'a Value) -> Vec<&'a Value> {
         self.0.evaluate(value)
+    }
+
+    #[inline]
+    pub fn evaluate_from_reader<R: ciborium_io::Read>(&self, reader: R) -> Result<Vec<u8>, Error>
+    where
+        R::Error: fmt::Debug,
+    {
+        let value: Value = from_reader(reader).map_err(|e| Error::Serialization(e.to_string()))?;
+        let result = self.evaluate(&value);
+        let mut buf = Vec::new();
+        into_writer(&result, &mut buf).map_err(|e| Error::Serialization(e.to_string()))?;
+        Ok(buf)
+
     }
 }
 

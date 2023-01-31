@@ -2,6 +2,7 @@ use crate::{
     BooleanExpr, CborPath, Comparable, ComparisonExpr, ComparisonOperator, Error, Function, Path,
     Segment, Selector, SingularPath, SingularSegment,
 };
+use cbor_diag::{parse_diag, parse_bytes};
 use ciborium::{cbor, value::Value};
 
 #[test]
@@ -46,20 +47,14 @@ fn evaluate_key() {
 #[test]
 fn evaluate_wildcard() -> Result<(), Error> {
     let value = cbor!(
-    { 
+    {
         "o" => {"j" => 1, "k" => 2},
         "a" => [5, 3]
     })?;
 
     let cbor_path = CborPath::new(vec![Segment::Child(vec![Selector::Wildcard])]);
     let result = cbor_path.evaluate(&value);
-    assert_eq!(
-        vec![
-            &cbor!({"j" => 1, "k" => 2})?,
-            &cbor!([5, 3])?
-        ],
-        result
-    );
+    assert_eq!(vec![&cbor!({"j" => 1, "k" => 2})?, &cbor!([5, 3])?], result);
 
     let cbor_path = CborPath::new(vec![
         Segment::Child(vec![Selector::key("o".into())]),
@@ -1041,8 +1036,27 @@ fn filter_root_current() {
             Comparable::SingularPath(SingularPath::abs(vec![SingularSegment::key("c".into())])),
         ),
     )])]);
-    let result = cbor_path.evaluate(&value);
 
-    println!("result: {result:?}");
+    let result = cbor_path.evaluate(&value);
     assert_eq!(vec![&Value::Map(vec![("k".into(), 1.into()),]),], result);
+}
+
+#[test]
+fn evaluate_from_reader() -> Result<(), Error> {
+    let cbor = r#"{"a": {"k": 1}, "b": {"k": 3}, "c": 2 }"#;
+    let buf = parse_diag(cbor).unwrap().to_bytes();
+
+    // ["$", {"..": {"?": {"<": [["@", "k"], ["$", "c""]]}}}]
+    let cbor_path = CborPath::new(vec![Segment::Descendant(vec![Selector::filter(
+        BooleanExpr::comparison(
+            Comparable::SingularPath(SingularPath::rel(vec![SingularSegment::key("k".into())])),
+            ComparisonOperator::Lt,
+            Comparable::SingularPath(SingularPath::abs(vec![SingularSegment::key("c".into())])),
+        ),
+    )])]);
+
+    let result = cbor_path.evaluate_from_reader(buf.as_slice())?;
+    assert_eq!(r#"[{"k":1}]"#, parse_bytes(&result).unwrap().to_diag());
+
+    Ok(())
 }
