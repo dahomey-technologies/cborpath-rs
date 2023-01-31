@@ -1,3 +1,8 @@
+[![Crate](https://img.shields.io/crates/v/cborpath.svg)](https://crates.io/crates/cborpath)
+[![docs.rs](https://docs.rs/cborpath/badge.svg)](https://docs.rs/cborpath)
+[![Build](https://github.com/dahomey-technologies/cborpath-rs/actions/workflows/compile_and_test.yml/badge.svg)](https://github.com/dahomey-technologies/cborpath-rs/actions/workflows/compile_and_test.yml)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 # cborpath-rs
 cborpath is a CBORPath engine written in Rust.
 CBORPath is an adaptation of JSONPath to [CBOR](https://www.rfc-editor.org/rfc/rfc8949.html) based on the [JsonPATH RFC Draft](https://www.ietf.org/archive/id/draft-ietf-jsonpath-base-09.html)
