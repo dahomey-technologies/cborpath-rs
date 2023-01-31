@@ -2,7 +2,8 @@
 cborpath is a CBORPath engine written in Rust.
 CBORPath is an adaptation of JSONPath to [CBOR](https://www.rfc-editor.org/rfc/rfc8949.html) based on the [JsonPATH RFC Draft](https://www.ietf.org/archive/id/draft-ietf-jsonpath-base-09.html)
 
-# CBORPath syntax summary
+# CBORPath
+## Syntax summary
 
 | JSONPath            | CBORPath                | Description                                                                                                             |
 |---------------------|-------------------------|-------------------------------------------------------------------------------------------------------------------------|
@@ -17,7 +18,7 @@ CBORPath is an adaptation of JSONPath to [CBOR](https://www.rfc-editor.org/rfc/r
 | `?<expr>`           | `{"?": <expr>}`         | [filter selector](#filter-selector): selects particular children using a boolean expression                             |
 | `length(@.foo)`     | `{"length": ["@", "foo"]}` | [function extension](#fnex): invokes a function in a filter expression                                               |
 
-## CBORPath Examples
+## Examples
 
 This section is informative. It provides examples of CBORPath expressions.
 
