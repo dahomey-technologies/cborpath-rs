@@ -136,7 +136,7 @@ fn comparison() -> Result<(), Error> {
     ]);
 
     // $.absent1 == $.absent2
-    let comparison = ComparisonExpr(
+    let comparison = ComparisonExpr::new(
         Comparable::SingularPath(SingularPath::abs(vec![SingularSegment::key(cbor!(
             "absent1"
         )?)])),
@@ -148,7 +148,7 @@ fn comparison() -> Result<(), Error> {
     assert!(comparison.evaluate(&value, &value));
 
     // $.absent1 <= $.absent2
-    let comparison = ComparisonExpr(
+    let comparison = ComparisonExpr::new(
         Comparable::SingularPath(SingularPath::abs(vec![SingularSegment::key(Value::Text(
             "absent1".to_owned(),
         ))])),
@@ -160,7 +160,7 @@ fn comparison() -> Result<(), Error> {
     assert!(comparison.evaluate(&value, &value));
 
     // $.absent1 == "g"
-    let comparison = ComparisonExpr(
+    let comparison = ComparisonExpr::new(
         Comparable::SingularPath(SingularPath::abs(vec![SingularSegment::key(Value::Text(
             "absent1".to_owned(),
         ))])),
@@ -170,7 +170,7 @@ fn comparison() -> Result<(), Error> {
     assert!(!comparison.evaluate(&value, &value));
 
     // $.absent1 != $.absent2
-    let comparison = ComparisonExpr(
+    let comparison = ComparisonExpr::new(
         Comparable::SingularPath(SingularPath::abs(vec![SingularSegment::key(Value::Text(
             "absent1".to_owned(),
         ))])),
@@ -182,7 +182,7 @@ fn comparison() -> Result<(), Error> {
     assert!(!comparison.evaluate(&value, &value));
 
     // $.absent1 != "g"
-    let comparison = ComparisonExpr(
+    let comparison = ComparisonExpr::new(
         Comparable::SingularPath(SingularPath::abs(vec![SingularSegment::key(Value::Text(
             "absent1".to_owned(),
         ))])),
@@ -192,7 +192,7 @@ fn comparison() -> Result<(), Error> {
     assert!(comparison.evaluate(&value, &value));
 
     // 1 <= 2
-    let comparison = ComparisonExpr(
+    let comparison = ComparisonExpr::new(
         Comparable::Value(1.into()),
         ComparisonOperator::Lte,
         Comparable::Value(2.into()),
@@ -200,7 +200,7 @@ fn comparison() -> Result<(), Error> {
     assert!(comparison.evaluate(&value, &value));
 
     // 1 > 2
-    let comparison = ComparisonExpr(
+    let comparison = ComparisonExpr::new(
         Comparable::Value(1.into()),
         ComparisonOperator::Gt,
         Comparable::Value(2.into()),
@@ -208,7 +208,7 @@ fn comparison() -> Result<(), Error> {
     assert!(!comparison.evaluate(&value, &value));
 
     // 13 == "13"
-    let comparison = ComparisonExpr(
+    let comparison = ComparisonExpr::new(
         Comparable::Value(13.into()),
         ComparisonOperator::Eq,
         Comparable::Value("13".into()),
@@ -216,7 +216,7 @@ fn comparison() -> Result<(), Error> {
     assert!(!comparison.evaluate(&value, &value));
 
     // "a" <= "b"
-    let comparison = ComparisonExpr(
+    let comparison = ComparisonExpr::new(
         Comparable::Value("a".into()),
         ComparisonOperator::Lte,
         Comparable::Value("b".into()),
@@ -224,7 +224,7 @@ fn comparison() -> Result<(), Error> {
     assert!(comparison.evaluate(&value, &value));
 
     // "a" > "b"
-    let comparison = ComparisonExpr(
+    let comparison = ComparisonExpr::new(
         Comparable::Value("a".into()),
         ComparisonOperator::Gt,
         Comparable::Value("b".into()),
@@ -232,7 +232,7 @@ fn comparison() -> Result<(), Error> {
     assert!(!comparison.evaluate(&value, &value));
 
     // $.obj == $.arr
-    let comparison = ComparisonExpr(
+    let comparison = ComparisonExpr::new(
         Comparable::SingularPath(SingularPath::abs(vec![SingularSegment::key(Value::Text(
             "obj".to_owned(),
         ))])),
@@ -244,7 +244,7 @@ fn comparison() -> Result<(), Error> {
     assert!(!comparison.evaluate(&value, &value));
 
     // $.obj != $.arr
-    let comparison = ComparisonExpr(
+    let comparison = ComparisonExpr::new(
         Comparable::SingularPath(SingularPath::abs(vec![SingularSegment::key(Value::Text(
             "obj".to_owned(),
         ))])),
@@ -256,7 +256,7 @@ fn comparison() -> Result<(), Error> {
     assert!(comparison.evaluate(&value, &value));
 
     // $.obj == $.obj
-    let comparison = ComparisonExpr(
+    let comparison = ComparisonExpr::new(
         Comparable::SingularPath(SingularPath::abs(vec![SingularSegment::key(Value::Text(
             "obj".to_owned(),
         ))])),
@@ -268,7 +268,7 @@ fn comparison() -> Result<(), Error> {
     assert!(comparison.evaluate(&value, &value));
 
     // $.obj != $.obj
-    let comparison = ComparisonExpr(
+    let comparison = ComparisonExpr::new(
         Comparable::SingularPath(SingularPath::abs(vec![SingularSegment::key(Value::Text(
             "obj".to_owned(),
         ))])),
@@ -280,7 +280,7 @@ fn comparison() -> Result<(), Error> {
     assert!(!comparison.evaluate(&value, &value));
 
     // $.arr == $.arr
-    let comparison = ComparisonExpr(
+    let comparison = ComparisonExpr::new(
         Comparable::SingularPath(SingularPath::abs(vec![SingularSegment::key(Value::Text(
             "arr".to_owned(),
         ))])),
@@ -292,7 +292,7 @@ fn comparison() -> Result<(), Error> {
     assert!(comparison.evaluate(&value, &value));
 
     // $.arr != $.arr
-    let comparison = ComparisonExpr(
+    let comparison = ComparisonExpr::new(
         Comparable::SingularPath(SingularPath::abs(vec![SingularSegment::key(Value::Text(
             "arr".to_owned(),
         ))])),
@@ -304,7 +304,7 @@ fn comparison() -> Result<(), Error> {
     assert!(!comparison.evaluate(&value, &value));
 
     // 1 <= $.arr
-    let comparison = ComparisonExpr(
+    let comparison = ComparisonExpr::new(
         Comparable::Value(1.into()),
         ComparisonOperator::Lte,
         Comparable::SingularPath(SingularPath::abs(vec![SingularSegment::key(Value::Text(
@@ -314,7 +314,7 @@ fn comparison() -> Result<(), Error> {
     assert!(!comparison.evaluate(&value, &value));
 
     // 1 >= $.arr
-    let comparison = ComparisonExpr(
+    let comparison = ComparisonExpr::new(
         Comparable::Value(1.into()),
         ComparisonOperator::Gte,
         Comparable::SingularPath(SingularPath::abs(vec![SingularSegment::key(Value::Text(
@@ -324,7 +324,7 @@ fn comparison() -> Result<(), Error> {
     assert!(!comparison.evaluate(&value, &value));
 
     // 1 > $.arr
-    let comparison = ComparisonExpr(
+    let comparison = ComparisonExpr::new(
         Comparable::Value(1.into()),
         ComparisonOperator::Gt,
         Comparable::SingularPath(SingularPath::abs(vec![SingularSegment::key(Value::Text(
@@ -334,7 +334,7 @@ fn comparison() -> Result<(), Error> {
     assert!(!comparison.evaluate(&value, &value));
 
     // 1 < $.arr
-    let comparison = ComparisonExpr(
+    let comparison = ComparisonExpr::new(
         Comparable::Value(1.into()),
         ComparisonOperator::Lt,
         Comparable::SingularPath(SingularPath::abs(vec![SingularSegment::key(Value::Text(
@@ -344,7 +344,7 @@ fn comparison() -> Result<(), Error> {
     assert!(!comparison.evaluate(&value, &value));
 
     // true <= true
-    let comparison = ComparisonExpr(
+    let comparison = ComparisonExpr::new(
         Comparable::Value(Value::Bool(true)),
         ComparisonOperator::Lte,
         Comparable::Value(Value::Bool(true)),
@@ -352,7 +352,7 @@ fn comparison() -> Result<(), Error> {
     assert!(comparison.evaluate(&value, &value));
 
     // true > true
-    let comparison = ComparisonExpr(
+    let comparison = ComparisonExpr::new(
         Comparable::Value(Value::Bool(true)),
         ComparisonOperator::Gt,
         Comparable::Value(Value::Bool(true)),

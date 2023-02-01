@@ -1,5 +1,5 @@
-use crate::{parsing::parse_cbor_path, Error};
-use ciborium::{de::from_reader, value::Value, ser::into_writer};
+use crate::Error;
+use ciborium::{de::from_reader, ser::into_writer, value::Value};
 use regex::Regex;
 use serde::Deserialize;
 use std::{borrow::Cow, cmp::Ordering, fmt, iter::once, vec};
@@ -24,7 +24,7 @@ impl CborPath {
 
     #[inline]
     pub fn from_value(value: &Value) -> Result<Self, Error> {
-        parse_cbor_path(value)
+        value.try_into()
     }
 
     #[inline]
@@ -42,7 +42,6 @@ impl CborPath {
         let mut buf = Vec::new();
         into_writer(&result, &mut buf).map_err(|e| Error::Serialization(e.to_string()))?;
         Ok(buf)
-
     }
 }
 
@@ -260,6 +259,10 @@ impl WildcardSelector {
 pub(crate) struct IndexSelector(isize);
 
 impl IndexSelector {
+    pub fn new(index: isize) -> Self {
+        Self(index)
+    }
+
     fn evaluate<'a>(&self, value: &'a Value) -> Vec<&'a Value> {
         self.evaluate_single(value)
             .map(|v| vec![v])
@@ -283,6 +286,10 @@ impl IndexSelector {
 pub(crate) struct SliceSelector(isize, isize, isize);
 
 impl SliceSelector {
+    pub fn new(start: isize, end: isize, step: isize) -> Self {
+        Self(start, end, step)
+    }
+
     fn evaluate<'a>(&self, value: &'a Value) -> Vec<&'a Value> {
         let SliceSelector(start, end, step) = &self;
         match value {
@@ -396,8 +403,12 @@ impl BooleanExpr {
 }
 
 #[derive(Debug, PartialEq)]
-pub(crate) struct ComparisonExpr(pub Comparable, pub ComparisonOperator, pub Comparable);
+pub(crate) struct ComparisonExpr(Comparable, ComparisonOperator, Comparable);
 impl ComparisonExpr {
+    pub fn new(left: Comparable, operator: ComparisonOperator, right: Comparable) -> Self {
+        Self(left, operator, right)
+    }
+
     pub fn evaluate(&self, root: &Value, current: &Value) -> bool {
         let ComparisonExpr(left, op, right) = &self;
         match op {

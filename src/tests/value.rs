@@ -5,25 +5,25 @@ use crate::{
 use cbor_diag::parse_diag;
 use ciborium::{value::Value, de::from_reader};
 
-fn deserialize(cbor_diag_str: &str) -> Result<CborPath, Error> {
+fn from_cbor(cbor_diag_str: &str) -> Result<CborPath, Error> {
     let buf = parse_diag(cbor_diag_str).unwrap().to_bytes();
     let value: Value = from_reader(buf.as_slice()).unwrap();
     CborPath::from_value(&value)
 }
 
 #[test]
-fn deserialize_cbor_path() -> Result<(), Error> {
-    let cbor_path: CborPath = deserialize(r#""$""#)?;
+fn convert_to_cbor_path() -> Result<(), Error> {
+    let cbor_path: CborPath = from_cbor(r#""$""#)?;
     assert_eq!(cbor_path, CborPath::new(vec![]));
 
-    let cbor_path: CborPath = deserialize(r#"["$", "a"]"#)?;
+    let cbor_path: CborPath = from_cbor(r#"["$", "a"]"#)?;
     assert_eq!(
         cbor_path,
         CborPath::new(vec![Segment::Child(vec![Selector::key("a".into())])])
     );
 
     let cbor_path: CborPath =
-        deserialize(r##"["$", "foo", 12, 12.12, true, 'binary', {"#": 1}, {":": [0, -1, 1]}]"##)?;
+        from_cbor(r##"["$", "foo", 12, 12.12, true, 'binary', {"#": 1}, {":": [0, -1, 1]}]"##)?;
     assert_eq!(
         cbor_path,
         CborPath::new(vec![
@@ -39,7 +39,7 @@ fn deserialize_cbor_path() -> Result<(), Error> {
         ])
     );
 
-    let cbor_path: CborPath = deserialize(r##"["$", {"?": ["$", "a"]}, {"?": ["@", "a"]}]"##)?;
+    let cbor_path: CborPath = from_cbor(r##"["$", {"?": ["$", "a"]}, {"?": ["@", "a"]}]"##)?;
     assert_eq!(
         cbor_path,
         CborPath::new(vec![
@@ -52,7 +52,7 @@ fn deserialize_cbor_path() -> Result<(), Error> {
         ])
     );
 
-    let cbor_path: CborPath = deserialize(
+    let cbor_path: CborPath = from_cbor(
         r##"[
         "$", 
         {"?": {"<": [12, 13]}}, 
@@ -99,7 +99,7 @@ fn deserialize_cbor_path() -> Result<(), Error> {
     );
 
     let cbor_path: CborPath =
-        deserialize(r##"["$", {"?": {">=": [{"length": ["@", "authors"]}, 5]}}]"##)?;
+        from_cbor(r##"["$", {"?": {">=": [{"length": ["@", "authors"]}, 5]}}]"##)?;
     assert_eq!(
         cbor_path,
         CborPath::new(vec![Segment::Child(vec![Selector::filter(
@@ -114,7 +114,7 @@ fn deserialize_cbor_path() -> Result<(), Error> {
     );
 
     let cbor_path: CborPath =
-        deserialize(r##"["$", {"?": {">=": [{"count": ["@", "*", "authors"]}, 5]}}]"##)?;
+        from_cbor(r##"["$", {"?": {">=": [{"count": ["@", "*", "authors"]}, 5]}}]"##)?;
     assert_eq!(
         cbor_path,
         CborPath::new(vec![Segment::Child(vec![Selector::filter(
@@ -129,7 +129,7 @@ fn deserialize_cbor_path() -> Result<(), Error> {
         ),]),])
     );
 
-    let cbor_path: CborPath = deserialize(r#"["$", ["a", "b"]]"#)?;
+    let cbor_path: CborPath = from_cbor(r#"["$", ["a", "b"]]"#)?;
     assert_eq!(
         cbor_path,
         CborPath::new(vec![Segment::Child(vec![

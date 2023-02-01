@@ -79,7 +79,7 @@ This table shows some CBORPath queries that might be applied to this example and
 mod cbor_path;
 mod deserialization;
 mod error;
-mod parsing;
+mod value;
 
 pub use cbor_path::*;
 pub use error::*;
