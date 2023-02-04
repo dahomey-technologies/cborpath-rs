@@ -168,11 +168,7 @@ impl<'de> Deserialize<'de> for SegmentForDeserialization {
             where
                 E: de::Error,
             {
-                if v == WILDCARD_IDENTIFIER {
-                    Ok(SegmentForDeserialization::Selector(Selector::wildcard()))
-                } else {
-                    Ok(SegmentForDeserialization::Selector(Selector::key(v.into())))
-                }
+                Ok(SegmentForDeserialization::Selector(Selector::key(v.into())))
             }
 
             fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
@@ -201,6 +197,10 @@ impl<'de> Deserialize<'de> for SegmentForDeserialization {
                                 "Expected selector or array of selectors in a descendant segment",
                             )),
                         }
+                    },
+                    WILDCARD_IDENTIFIER => match map.next_value::<i32>() {
+                        Ok(i) if i == 1 => Ok(SegmentForDeserialization::Selector(Selector::wildcard())),
+                        _ => Err(de::Error::custom("Expected value `1`")),
                     }
                     INDEX_IDENTIFIER => Ok(SegmentForDeserialization::Selector(Selector::Index(
                         map.next_value::<IndexSelector>()?,

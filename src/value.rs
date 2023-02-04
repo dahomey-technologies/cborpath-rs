@@ -21,7 +21,7 @@ impl TryFrom<&Value> for Path {
             Value::Text(identifier) => match identifier.as_str() {
                 "$" => Ok(Path::abs(vec![])),
                 "@" => Ok(Path::rel(vec![])),
-                _ => Err(Error::Parsing(
+                _ => Err(Error::Conversion(
                     "Expected path identifier `$` or `@`".to_owned(),
                 )),
             },
@@ -29,14 +29,14 @@ impl TryFrom<&Value> for Path {
                 let mut iter = values.iter();
 
                 let Some(Value::Text(identifier)) = iter.next() else {
-                return Err(Error::Parsing("Expected path identifier `$` or `@`".to_owned()));
+                return Err(Error::Conversion("Expected path identifier `$` or `@`".to_owned()));
             };
 
                 let is_absolute_path = match identifier.as_str() {
                     "$" => true,
                     "@" => false,
                     _ => {
-                        return Err(Error::Parsing(
+                        return Err(Error::Conversion(
                             "Expected path identifier `$` or `@`".to_owned(),
                         ));
                     }
@@ -55,7 +55,7 @@ impl TryFrom<&Value> for Path {
                     Ok(Path::rel(segments))
                 }
             }
-            _ => Err(Error::Parsing(format!(
+            _ => Err(Error::Conversion(format!(
                 "Cannot parse path segments from `{value:?}`"
             ))),
         }
@@ -74,7 +74,7 @@ impl TryFrom<(&Value, bool)> for Segments {
             Value::Text(identifier) => match identifier.as_str() {
                 "$" => Ok(Segments(vec![])),
                 "@" => Ok(Segments(vec![])),
-                _ => Err(Error::Parsing(
+                _ => Err(Error::Conversion(
                     "Expected path identifier `$` or `@`".to_owned(),
                 )),
             },
@@ -84,11 +84,11 @@ impl TryFrom<(&Value, bool)> for Segments {
                 let expected_identifier = if absolute_path { "$" } else { "@" };
 
                 let Some(Value::Text(identifier)) = iter.next() else {
-                return Err(Error::Parsing(format!("Expected path identifier `{expected_identifier}`")));
+                return Err(Error::Conversion(format!("Expected path identifier `{expected_identifier}`")));
             };
 
                 if identifier != expected_identifier {
-                    return Err(Error::Parsing(format!(
+                    return Err(Error::Conversion(format!(
                         "Expected path identifier `{expected_identifier}`"
                     )));
                 }
@@ -102,7 +102,7 @@ impl TryFrom<(&Value, bool)> for Segments {
 
                 Ok(Segments(segments))
             }
-            _ => Err(Error::Parsing(format!(
+            _ => Err(Error::Conversion(format!(
                 "Cannot parse path segments from `{value:?}`"
             ))),
         }
@@ -135,26 +135,20 @@ impl TryFrom<&Value> for SegmentForConversion {
             | Value::Float(_)
             | Value::Bool(_)
             | Value::Null => Ok(SegmentForConversion::Selector(Selector::key(value.clone()))),
-            Value::Text(s) => {
-                if s == "*" {
-                    Ok(SegmentForConversion::Selector(Selector::wildcard()))
-                } else {
-                    Ok(SegmentForConversion::Selector(Selector::key(value.clone())))
-                }
-            }
+            Value::Text(_) => Ok(SegmentForConversion::Selector(Selector::key(value.clone()))),
             Value::Array(a) => {
                 let selectors = a
                     .iter()
                     .map(|v| match v.try_into()? {
                         SegmentForConversion::Selector(selector) => Ok(selector),
-                        _ => Err(Error::Parsing("Expected a single selector".to_owned())),
+                        _ => Err(Error::Conversion("Expected a single selector".to_owned())),
                     })
                     .collect::<Result<Vec<Selector>, Error>>()?;
                 Ok(SegmentForConversion::Selectors(selectors))
             }
             Value::Map(m) => {
                 let Some((Value::Text(identifier), value)) = m.first() else {
-                return Err(Error::Parsing("Expected a single element map".to_owned()));
+                return Err(Error::Conversion("Expected a single element map".to_owned()));
             };
 
                 match identifier.as_str() {
@@ -162,10 +156,16 @@ impl TryFrom<&Value> for SegmentForConversion {
                         SegmentForConversion::Selectors(selectors) => {
                             Ok(SegmentForConversion::Descendant(selectors))
                         }
-                        _ => Err(Error::Parsing(
+                        _ => Err(Error::Conversion(
                             "Expected selector or array of selectors in a descendant segment"
                                 .to_owned(),
                         )),
+                    },
+                    "*" => match value {
+                        Value::Integer(i) if Into::<i128>::into(*i) == 1i128 => {
+                            Ok(SegmentForConversion::Selector(Selector::Wildcard))
+                        }
+                        _ => Err(Error::Conversion("Cannot parse wildcard".to_owned())),
                     },
                     "#" => Ok(SegmentForConversion::Selector(Selector::Index(
                         value.try_into()?,
@@ -176,12 +176,12 @@ impl TryFrom<&Value> for SegmentForConversion {
                     "?" => Ok(SegmentForConversion::Selector(Selector::filter(
                         value.try_into()?,
                     ))),
-                    _ => Err(Error::Parsing(
+                    _ => Err(Error::Conversion(
                         "Expected identifier `..`, `#`, `:` or `?`".to_owned(),
                     )),
                 }
             }
-            _ => Err(Error::Parsing(format!(
+            _ => Err(Error::Conversion(format!(
                 "Cannot parse segments from `{value:?}`"
             ))),
         }
@@ -196,7 +196,7 @@ impl TryFrom<&Value> for IndexSelector {
             let index: i64 = (*index).try_into()?;
             Ok(IndexSelector::new(index as isize))
         } else {
-            Err(Error::Parsing("Expected integer".to_owned()))
+            Err(Error::Conversion("Expected integer".to_owned()))
         }
     }
 }
@@ -217,10 +217,10 @@ impl TryFrom<&Value> for SliceSelector {
                         step as isize,
                     ))
                 }
-                _ => Err(Error::Parsing("Expected 3-elements array".to_owned())),
+                _ => Err(Error::Conversion("Expected 3-elements array".to_owned())),
             }
         } else {
-            Err(Error::Parsing("Expected array".to_owned()))
+            Err(Error::Conversion("Expected array".to_owned()))
         }
     }
 }
@@ -233,7 +233,7 @@ impl TryFrom<&Value> for BooleanExpr {
             Value::Array(_) => Ok(BooleanExpr::path(value.try_into()?)),
             Value::Map(m) => {
                 let Some((Value::Text(identifier), value)) = m.first() else {
-                return Err(Error::Parsing("Expected a single element map".to_owned()));
+                return Err(Error::Conversion("Expected a single element map".to_owned()));
             };
 
                 match identifier.as_str() {
@@ -243,12 +243,12 @@ impl TryFrom<&Value> for BooleanExpr {
                                 [left, right] => {
                                     Ok(BooleanExpr::and(left.try_into()?, right.try_into()?))
                                 }
-                                _ => Err(Error::Parsing(format!(
+                                _ => Err(Error::Conversion(format!(
                                     "Cannot parse boolean expression from `{value:?}`"
                                 ))),
                             }
                         } else {
-                            Err(Error::Parsing(format!(
+                            Err(Error::Conversion(format!(
                                 "Cannot parse boolean expression from `{value:?}`"
                             )))
                         }
@@ -259,12 +259,12 @@ impl TryFrom<&Value> for BooleanExpr {
                                 [left, right] => {
                                     Ok(BooleanExpr::and(left.try_into()?, right.try_into()?))
                                 }
-                                _ => Err(Error::Parsing(format!(
+                                _ => Err(Error::Conversion(format!(
                                     "Cannot parse boolean expression from `{value:?}`"
                                 ))),
                             }
                         } else {
-                            Err(Error::Parsing(format!(
+                            Err(Error::Conversion(format!(
                                 "Cannot parse boolean expression from `{value:?}`"
                             )))
                         }
@@ -279,12 +279,12 @@ impl TryFrom<&Value> for BooleanExpr {
                                 [comparable, Value::Text(regex)] => Ok(BooleanExpr::function(
                                     Function::_match(comparable.try_into()?, regex.as_str())?,
                                 )),
-                                _ => Err(Error::Parsing(format!(
+                                _ => Err(Error::Conversion(format!(
                                     "Cannot parse match function from `{value:?}`"
                                 ))),
                             }
                         } else {
-                            Err(Error::Parsing(format!(
+                            Err(Error::Conversion(format!(
                                 "Cannot parse match function from `{value:?}`"
                             )))
                         }
@@ -295,22 +295,22 @@ impl TryFrom<&Value> for BooleanExpr {
                                 [comparable, Value::Text(regex)] => Ok(BooleanExpr::function(
                                     Function::search(comparable.try_into()?, regex.as_str())?,
                                 )),
-                                _ => Err(Error::Parsing(format!(
+                                _ => Err(Error::Conversion(format!(
                                     "Cannot parse search function from `{value:?}`"
                                 ))),
                             }
                         } else {
-                            Err(Error::Parsing(format!(
+                            Err(Error::Conversion(format!(
                                 "Cannot parse search function from `{value:?}`"
                             )))
                         }
                     }
-                    _ => Err(Error::Parsing(format!(
+                    _ => Err(Error::Conversion(format!(
                         "Cannot parse boolean expression from `{value:?}`"
                     ))),
                 }
             }
-            _ => Err(Error::Parsing(format!(
+            _ => Err(Error::Conversion(format!(
                 "Cannot parse boolean expression from `{value:?}`"
             ))),
         }
@@ -331,7 +331,7 @@ impl TryFrom<(&str, &Value)> for ComparisonExpr {
             ">=" => ComparisonOperator::Gte,
             ">" => ComparisonOperator::Gt,
             _ => {
-                return Err(Error::Parsing(format!(
+                return Err(Error::Conversion(format!(
                     "Cannot parse comparison operator from `{identifier:?}`"
                 )))
             }
@@ -344,12 +344,12 @@ impl TryFrom<(&str, &Value)> for ComparisonExpr {
                     operator,
                     right.try_into()?,
                 )),
-                _ => Err(Error::Parsing(format!(
+                _ => Err(Error::Conversion(format!(
                     "Cannot parse comparison from `{value:?}`"
                 ))),
             }
         } else {
-            Err(Error::Parsing(format!(
+            Err(Error::Conversion(format!(
                 "Cannot parse comparison from `{value:?}`"
             )))
         }
@@ -370,18 +370,18 @@ impl TryFrom<&Value> for Comparable {
             Value::Array(a) => Ok(Comparable::SingularPath(a.try_into()?)),
             Value::Map(m) => {
                 let Some((Value::Text(identifier), value)) = m.first() else {
-                return Err(Error::Parsing("Expected a single element map".to_owned()));
+                return Err(Error::Conversion("Expected a single element map".to_owned()));
             };
 
                 match identifier.as_str() {
                     "length" => Ok(Comparable::Function(Function::length(value.try_into()?))),
                     "count" => Ok(Comparable::Function(Function::count(value.try_into()?))),
-                    _ => Err(Error::Parsing(
+                    _ => Err(Error::Conversion(
                         "Expected `length` or `count` function".to_owned(),
                     )),
                 }
             }
-            _ => Err(Error::Parsing(format!(
+            _ => Err(Error::Conversion(format!(
                 "Cannot parse comparable from `{value:?}`"
             ))),
         }
@@ -395,14 +395,14 @@ impl TryFrom<&Vec<Value>> for SingularPath {
         let mut iter = values.iter();
 
         let Some(Value::Text(identifier)) = iter.next() else {
-        return Err(Error::Parsing("Expected singular path identifier `$` or `@`".to_owned()));
+        return Err(Error::Conversion("Expected singular path identifier `$` or `@`".to_owned()));
     };
 
         let is_absolute_path = match identifier.as_str() {
             "$" => true,
             "@" => false,
             _ => {
-                return Err(Error::Parsing(
+                return Err(Error::Conversion(
                     "Expected singular path identifier `$` or `@`".to_owned(),
                 ));
             }
@@ -436,15 +436,15 @@ impl TryFrom<&Value> for SingularSegment {
             | Value::Null => Ok(SingularSegment::key(value.clone())),
             Value::Map(m) => {
                 let Some((Value::Text(identifier), value)) = m.first() else {
-                return Err(Error::Parsing("Expected a single element map".to_owned()));
+                return Err(Error::Conversion("Expected a single element map".to_owned()));
             };
 
                 match identifier.as_str() {
                     "#" => Ok(SingularSegment::Index(value.try_into()?)),
-                    _ => Err(Error::Parsing("Expected identifier `#`".to_owned())),
+                    _ => Err(Error::Conversion("Expected identifier `#`".to_owned())),
                 }
             }
-            _ => Err(Error::Parsing(format!(
+            _ => Err(Error::Conversion(format!(
                 "Cannot parse singular segment from `{value:?}`"
             ))),
         }

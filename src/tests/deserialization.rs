@@ -113,7 +113,7 @@ fn deserialize_cbor_path() -> Result<(), Error> {
     );
 
     let cbor_path: CborPath =
-        deserialize(r##"["$", {"?": {">=": [{"count": ["@", "*", "authors"]}, 5]}}]"##)?;
+        deserialize(r##"["$", {"?": {">=": [{"count": ["@", {"*": 1}, "authors"]}, 5]}}]"##)?;
     assert_eq!(
         cbor_path,
         CborPath::new(vec![Segment::Child(vec![Selector::filter(

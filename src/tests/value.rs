@@ -114,7 +114,7 @@ fn convert_to_cbor_path() -> Result<(), Error> {
     );
 
     let cbor_path: CborPath =
-        from_cbor(r##"["$", {"?": {">=": [{"count": ["@", "*", "authors"]}, 5]}}]"##)?;
+        from_cbor(r##"["$", {"?": {">=": [{"count": ["@", {"*": 1}, "authors"]}, 5]}}]"##)?;
     assert_eq!(
         cbor_path,
         CborPath::new(vec![Segment::Child(vec![Selector::filter(

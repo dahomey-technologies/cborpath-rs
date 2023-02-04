@@ -5,31 +5,31 @@ use std::{
 
 #[derive(Debug)]
 pub enum Error {
-    Parsing(String),
+    Conversion(String),
     Serialization(String)
 }
 
 impl From<str::Utf8Error> for Error {
     fn from(e: str::Utf8Error) -> Self {
-        Error::Parsing(format!("invalid UTF8 string: {e}"))
+        Error::Conversion(format!("invalid UTF8 string: {e}"))
     }
 }
 
 impl From<regex::Error> for Error {
     fn from(e: regex::Error) -> Self {
-        Error::Parsing(format!("invalid regex: {e}"))
+        Error::Conversion(format!("invalid regex: {e}"))
     }
 }
 
 impl From<std::num::TryFromIntError> for Error {
     fn from(e: std::num::TryFromIntError) -> Self {
-        Error::Parsing(format!("invalid integer conversion: {e}"))
+        Error::Conversion(format!("invalid integer conversion: {e}"))
     }
 }
 
 impl From<ciborium::value::Error> for Error {
     fn from(e: ciborium::value::Error) -> Self {
-        Error::Parsing(e.to_string())
+        Error::Conversion(e.to_string())
     }
 }
 
