@@ -83,7 +83,7 @@ This table shows some CBORPath queries that might be applied to this example and
 
 These are a few samples of code based on the examples of the previous section.
 
-```{.rust .cb.run}
+```rust
 use cborpath::{CborPath, builder};
 use ciborium::{cbor, value::Value};
 
