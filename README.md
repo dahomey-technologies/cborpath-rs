@@ -7,7 +7,7 @@
 cborpath is a CBORPath engine written in Rust.
 
 # CBORPath
-CBORPath is an adaptation of JSONPath to [CBOR](https://www.rfc-editor.org/rfc/rfc8949.html) based on the [JsonPATH RFC Draft](https://www.ietf.org/archive/id/draft-ietf-jsonpath-base-09.html)
+CBORPath is an adaptation of JSONPath to [CBOR](https://www.rfc-editor.org/rfc/rfc8949.html) based on the [JSONPath RFC Draft](https://www.ietf.org/archive/id/draft-ietf-jsonpath-base-09.html)
 
 ## Syntax summary
 
