@@ -190,9 +190,12 @@ impl<'de> Deserialize<'de> for SegmentForDeserialization {
                     DESCENDANT_SEGMENT_IDENTIFIER => {
                         let descendant: SegmentForDeserialization = map.next_value()?;
                         match descendant {
+                            SegmentForDeserialization::Selector(selector) => {
+                                Ok(SegmentForDeserialization::Descendant(vec![selector]))
+                            },
                             SegmentForDeserialization::Selectors(selectors) => {
                                 Ok(SegmentForDeserialization::Descendant(selectors))
-                            }
+                            },
                             _ => Err(de::Error::custom(
                                 "Expected selector or array of selectors in a descendant segment",
                             )),

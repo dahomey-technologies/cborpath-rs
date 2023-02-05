@@ -1,7 +1,7 @@
 use crate::{
     builder::{
-        abs_path, count, gt, gte, length, lt, lte, neq, rel_path, segment, sing_abs_path,
-        sing_rel_path, val, eq,
+        abs_path, count, eq, gt, gte, length, lt, lte, neq, rel_path, segment, sing_abs_path,
+        sing_rel_path, val,
     },
     CborPath, Error,
 };
@@ -90,6 +90,108 @@ fn deserialize_cbor_path() -> Result<(), Error> {
     assert_eq!(
         CborPath::builder()
             .child(segment().key("a").key("b"))
+            .build(),
+        cbor_path,
+    );
+
+    Ok(())
+}
+
+#[test]
+fn official_samples() -> Result<(), Error> {
+    let cbor_path: CborPath = deserialize(r#"["$", "store", "book", {"*": 1}, "author"]"#)?;
+    assert_eq!(
+        CborPath::builder()
+            .key("store")
+            .key("book")
+            .wildcard()
+            .key("author")
+            .build(),
+        cbor_path,
+    );
+
+    let cbor_path: CborPath = deserialize(r#"["$", {"..": "author"}]"#)?;
+    assert_eq!(
+        CborPath::builder()
+            .descendant(segment().key("author"))
+            .build(),
+        cbor_path,
+    );
+
+    let cbor_path: CborPath = deserialize(r#"["$", "store", {"*": 1}]"#)?;
+    assert_eq!(
+        CborPath::builder().key("store").wildcard().build(),
+        cbor_path,
+    );
+
+    let cbor_path: CborPath = deserialize(r#"["$", "store", {"..": "price"}]"#)?;
+    assert_eq!(
+        CborPath::builder()
+            .key("store")
+            .descendant(segment().key("price"))
+            .build(),
+        cbor_path,
+    );
+
+    let cbor_path: CborPath = deserialize(r##"["$", {"..": "book"}, {"#": 2}]"##)?;
+    assert_eq!(
+        CborPath::builder()
+            .descendant(segment().key("book"))
+            .index(2)
+            .build(),
+        cbor_path,
+    );
+
+    let cbor_path: CborPath = deserialize(r##"["$", {"..": "book"}, {"#": -1}]"##)?;
+    assert_eq!(
+        CborPath::builder()
+            .descendant(segment().key("book"))
+            .index(-1)
+            .build(),
+        cbor_path,
+    );
+
+    let cbor_path: CborPath = deserialize(r##"["$", {"..": "book"}, [{"#": 0}, {"#": 1}]]"##)?;
+    assert_eq!(
+        CborPath::builder()
+            .descendant(segment().key("book"))
+            .child(segment().index(0).index(1))
+            .build(),
+        cbor_path,
+    );
+
+    let cbor_path: CborPath = deserialize(r#"["$", {"..": "book"}, {":": [0, 2, 1]}]"#)?;
+    assert_eq!(
+        CborPath::builder()
+            .descendant(segment().key("book"))
+            .slice(0, 2, 1)
+            .build(),
+        cbor_path,
+    );
+
+    let cbor_path: CborPath = deserialize(r#"["$", {"..": "book"}, {"?": ["@", "isbn"]}]"#)?;
+    assert_eq!(
+        CborPath::builder()
+            .descendant(segment().key("book"))
+            .filter(rel_path().key("isbn"))
+            .build(),
+        cbor_path,
+    );
+
+    let cbor_path: CborPath =
+        deserialize(r#"["$", {"..": "book"}, {"?": {"<": [["@", "price"], 10.0]}}]"#)?;
+    assert_eq!(
+        CborPath::builder()
+            .descendant(segment().key("book"))
+            .filter(lt(sing_rel_path().key("price"), val(10.)))
+            .build(),
+        cbor_path,
+    );
+
+    let cbor_path: CborPath = deserialize(r#"["$", {"..": {"*": 1}}]"#)?;
+    assert_eq!(
+        CborPath::builder()
+            .descendant(segment().wildcard())
             .build(),
         cbor_path,
     );
