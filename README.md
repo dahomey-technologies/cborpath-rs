@@ -66,18 +66,18 @@ The examples are based on the simple CBOR value representing a bookstore (that a
 
 This table shows some CBORPath queries that might be applied to this example and their intended results.
 
-| JSONPath                        | CBORPath                       | Intended result                                                                     |
-|---------------------------------|------------------------------------------------------|---------------------------------------------------------------|
-| `$.store.book[*].author`        | `["$", "store", "book", {"*": 1}, "author"]`         | the authors of all books in the store                         |
-| `$..author`                     | `["$", {"..": "author"}]`                            | all authors                                                   |
-| `$.store.*`                     | `["$", "store", {"*": 1}]`                           | all things in store, which are some books and a red bicycle   |
-| `$.store..price`                | `["$", "store", {"..": "price"}]`                    | the prices of everything in the store                         |
-| `$..book[2]`                    | `["$", {"..": "book"}, {"#": 2}]  `                  | the third book                                                |
-| `$..book[-1]`                   | `["$", {"..": "book"}, {"#": -1}]`                   | the last book in order                                        |
-| `$..book[0,1]`<br>`$..book[:2]` | `["$", {"..": "book"}, [{"#": 0}, {"#": 1}]]`<br>`["$", {"..": "book"}, {":": [0, 2, 1]}]` | the first two books     |
-| `$..book[?(@.isbn)]`            | `["$", {"..": "book"}, {"?": ["@", "isbn"]}]`        | all books with an ISBN number                                 |
-| `$..book[?(@.price<10)]`        | `["$", {"..": "book"}, {"?": {"<": [["@", "price"], 10.0]}}]`  | all books cheaper than 10                           |
-| `$..*`                          | `["$", {"..": {"*": 1}}]`                            | all member values and array elements contained in input value |
+| JSONPath                        | CBORPath                                             | Intended result                                                 |
+|---------------------------------|------------------------------------------------------|-----------------------------------------------------------------|
+| `$.store.book[*].author`        | `["$", "store", "book", {"*": 1}, "author"]`         | the authors of all books in the store                           |
+| `$..author`                     | `["$", {"..": "author"}]`                            | all authors                                                     |
+| `$.store.*`                     | `["$", "store", {"*": 1}]`                           | all things in store, which are some books and a red bicycle     |
+| `$.store..price`                | `["$", "store", {"..": "price"}]`                    | the prices of everything in the store                           |
+| `$..book[2]`                    | `["$", {"..": "book"}, {"#": 2}]  `                  | the third book                                                  |
+| `$..book[-1]`                   | `["$", {"..": "book"}, {"#": -1}]`                   | the last book in order                                          |
+| `$..book[0,1]`<br>`$..book[:2]` | `["$", {"..": "book"}, [{"#": 0}, {"#": 1}]]`<br>`["$", {"..": "book"}, {":": [0, 2, 1]}]` | the first two books       |
+| `$..book[?(@.isbn)]`            | `["$", {"..": "book"}, {"?": ["@", "isbn"]}]`        | all books with an ISBN number                                   |
+| `$..book[?(@.price<10)]`        | `["$", {"..": "book"}, {"?": {"<": [["@", "price"], 10.0]}}]`  | all books cheaper than 10                             |
+| `$..*`                          | `["$", {"..": {"*": 1}}]`                            | all map item values and array elements contained in input value |
 
 # Library Usage
 
@@ -326,7 +326,7 @@ assert_eq!(vec![
   }).unwrap()
 ], results);
 
-// all member values and array elements contained in input value
+// all map item values and array elements contained in input value
 // ["$", {"..": {"*": 1}}]
 let cbor_path = CborPath::builder()
   .descendant(builder::segment().wildcard())

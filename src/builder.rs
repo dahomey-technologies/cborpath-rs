@@ -1,3 +1,6 @@
+/*!
+Fluent API to build a [`CborPath`](CborPath) instance
+*/
 use crate::{
     AbsolutePath, BooleanExpr, CborPath, Comparable, ComparisonExpr, ComparisonOperator, Error,
     FilterSelector, Function, IndexSelector, KeySelector, Path, RelativePath, Segment, Selector,
@@ -6,21 +9,42 @@ use crate::{
 use ciborium::value::Value;
 use regex::Regex;
 
+/// Represents an absolute path (beginning by a '$')
+/// 
+/// This is the format of a `CBORPath` expression.
+/// It can also be passed to 
+/// * the [`count`](count) function
+/// * the [`filter`](SegmentBuilder::filter) selector. 
+/// In this case the path is used in an existence test within the filter
 #[inline]
 pub fn abs_path() -> PathBuilder {
     PathBuilder::new(true)
 }
 
+/// Represents a relative path (beginning by a '@')
+/// 
+/// This is the format of a `CBORPath` expression.
+/// It can also be passed to 
+/// * the [`count`](count) function
+/// * the [`filter`](SegmentBuilder::filter) selector. 
+/// In this case the path is used in an existence test within the filter
 #[inline]
 pub fn rel_path() -> PathBuilder {
     PathBuilder::new(false)
 }
 
+/// Represents a segment of a [`path`](PathBuilder)
+/// 
+/// Used to build a segment to be passed to the [`child`](PathBuilder::child) or 
+/// [`descendant`](PathBuilder::descendant) functions
 #[inline]
 pub fn segment() -> SegmentBuilder {
     SegmentBuilder::new()
 }
 
+/// Represents a `logical AND` between two [`boolean expressions`](BooleanExprBuilder)
+/// 
+/// Note that a [`path`](PathBuilder) can be used as one of the two [`boolean expressions`](BooleanExprBuilder)
 #[inline]
 pub fn and<B1, B2>(left: B1, right: B2) -> BooleanExprBuilder
 where
@@ -33,6 +57,9 @@ where
     ))
 }
 
+/// Represents a `logical OR` between two [`boolean expressions`](BooleanExprBuilder)
+/// 
+/// Note that a [`path`](PathBuilder) can be used as one of the two [`boolean expressions`](BooleanExprBuilder)
 #[inline]
 pub fn or<B1, B2>(left: B1, right: B2) -> BooleanExprBuilder
 where
@@ -45,6 +72,9 @@ where
     ))
 }
 
+/// Represents a `logical NOT` on a [`boolean expression`](BooleanExprBuilder)
+/// 
+/// Note that a [`path`](PathBuilder) can be used as the [`boolean expression`](BooleanExprBuilder)
 #[inline]
 pub fn not<B>(expr: B) -> BooleanExprBuilder
 where
@@ -53,6 +83,9 @@ where
     BooleanExprBuilder::new(BooleanExpr::Not(Box::new(expr.into().build())))
 }
 
+/// Represents a `greater than or equal` comparison between two [`comparables`](ComparableBuilder)
+/// 
+/// Note that a [`singular path`](SingularPathBuilder) can be used as one of the two [`comparables`](ComparableBuilder)
 #[inline]
 pub fn gte<C1, C2>(left: C1, right: C2) -> BooleanExprBuilder
 where
@@ -66,6 +99,9 @@ where
     )))
 }
 
+/// Represents a `greater than` comparison between two [`comparables`](ComparableBuilder)
+/// 
+/// Note that a [`singular path`](SingularPathBuilder) can be used as one of the two [`comparables`](ComparableBuilder)
 #[inline]
 pub fn gt<C1, C2>(left: C1, right: C2) -> BooleanExprBuilder
 where
@@ -79,6 +115,9 @@ where
     )))
 }
 
+/// Represents a `equal` comparison between two [`comparables`](ComparableBuilder)
+/// 
+/// Note that a [`singular path`](SingularPathBuilder) can be used as one of the two [`comparables`](ComparableBuilder)
 #[inline]
 pub fn eq<C1, C2>(left: C1, right: C2) -> BooleanExprBuilder
 where
@@ -92,6 +131,9 @@ where
     )))
 }
 
+/// Represents a `not equal` comparison between two [`comparables`](ComparableBuilder)
+/// 
+/// Note that a [`singular path`](SingularPathBuilder) can be used as one of the two [`comparables`](ComparableBuilder)
 #[inline]
 pub fn neq<C1, C2>(left: C1, right: C2) -> BooleanExprBuilder
 where
@@ -105,6 +147,9 @@ where
     )))
 }
 
+/// Represents a `lesser than or equal` comparison between two [`comparables`](ComparableBuilder)
+/// 
+/// Note that a [`singular path`](SingularPathBuilder) can be used as one of the two [`comparables`](ComparableBuilder)
 #[inline]
 pub fn lte<C1, C2>(left: C1, right: C2) -> BooleanExprBuilder
 where
@@ -118,6 +163,9 @@ where
     )))
 }
 
+/// Represents a `lesser than` comparison between two [`comparables`](ComparableBuilder)
+/// 
+/// Note that a [`singular path`](SingularPathBuilder) can be used as one of the two [`comparables`](ComparableBuilder)
 #[inline]
 pub fn lt<C1, C2>(left: C1, right: C2) -> BooleanExprBuilder
 where
@@ -131,6 +179,16 @@ where
     )))
 }
 
+/// Represents a regular expression full match within a [`filter`](SegmentBuilder::filter).
+/// 
+/// # Arguments
+/// * `comparable` - [`comparable`](ComparableBuilder) 
+///    on which the regular expression will be applied
+/// * `regex` - Regular expression pattern in the format of the [`regex`](https://docs.rs/regex) crate.
+/// 
+/// Implementation automatically surrounds the regular expression with `^` and `$` to force the full math
+/// 
+/// Note that a [`singular path`](SingularPathBuilder) can be used as the [`comparable`](ComparableBuilder)
 #[inline]
 pub fn _match<C>(comparable: C, regex: &str) -> Result<BooleanExprBuilder, Error>
 where
@@ -139,6 +197,14 @@ where
     search(comparable, &format!("^{regex}$"))
 }
 
+/// Represents a regular expression substring match within a [`filter`](SegmentBuilder::filter).
+/// 
+/// # Arguments
+/// * `comparable` - [`comparable`](ComparableBuilder) 
+///    on which the regular expression will be applied
+/// * `regex` - Regular expression pattern in the format of the [`regex`](https://docs.rs/regex) crate.
+/// 
+/// Note that a [`singular path`](SingularPathBuilder) can be used as the [`comparable`](ComparableBuilder)
 #[inline]
 pub fn search<C>(comparable: C, regex: &str) -> Result<BooleanExprBuilder, Error>
 where
@@ -149,23 +215,45 @@ where
     )))
 }
 
-/// Create an absolute SingularPathBuilder
+/// Represents an absolute [`singular path`](SingularPathBuilder) (beginning by a '$')
 #[inline]
 pub fn sing_abs_path() -> SingularPathBuilder {
     SingularPathBuilder::new(true)
 }
 
-/// Create a relative SingularPathBuilder
+/// Represents a relative [`singular path`](SingularPathBuilder) (beginning by a '@')
 #[inline]
 pub fn sing_rel_path() -> SingularPathBuilder {
     SingularPathBuilder::new(false)
 }
 
+/// Represents a simple `CBOR` value within a filter.
+/// 
+/// Can be used wherever a [`comparable`](ComparableBuilder) is expected
 #[inline]
 pub fn val<V: Into<Value>>(v: V) -> ComparableBuilder {
     ComparableBuilder::new(Comparable::Value(v.into()))
 }
 
+/// Represents the `length` function within a [`filter`](SegmentBuilder::filter)
+/// 
+/// The `length` function extension provides a way to compute the length of a value 
+/// and make that available for further processing in the filter expression:
+/// ```json
+/// ["$", {"?": {">=": [{"length": ["@", "authors"]}, 5]}}]
+/// ```
+/// 
+/// Its only argument is a [`comparable`](ComparableBuilder) 
+/// (possibly taken from a [`singular path`](SingularPathBuilder) as in the example above). 
+/// 
+/// The result also is a [`comparable`](ComparableBuilder), an unsigned integer.
+/// * If the argument value is a `text string`, the result is the number of UTF8 characters in the string.
+/// * If the argument value is a `byte string`, the result is the size of the byte buffer.
+/// * If the argument value is an `array`, the result is the number of elements in the array.
+/// * If the argument value is a `map`, the result is the number of items in the map.
+/// * For any other argument value, the result is `1`.
+/// 
+/// Can be used wherever a [`comparable`](ComparableBuilder) is expected
 #[inline]
 pub fn length<C>(comparable: C) -> ComparableBuilder
 where
@@ -176,11 +264,34 @@ where
     ))))
 }
 
+/// Represents the `count` function within a [`filter`](SegmentBuilder::filter)
+/// 
+/// The `count` function extension provides a way to obtain the number of nodes in a [`path`](PathBuilder)
+/// and make that available for further processing in the filter expression:
+/// ```json
+/// ["$", {"?": {">=": [{"count": ["@", "authors"]}, 5]}}]
+/// ```
+/// 
+/// The result is a [`comparable`](ComparableBuilder), an unsigned integer, 
+/// that gives the number of nodes in the [`path`](PathBuilder). 
+/// 
+/// Can be used wherever a [`comparable`](ComparableBuilder) is expected.
 #[inline]
 pub fn count(path: PathBuilder) -> ComparableBuilder {
     ComparableBuilder::new(Comparable::Function(Function::Count(path.build_path())))
 }
 
+/// Represents a `path`
+/// 
+/// A `path` expression is a `CBOR Array` which, when applied to a `CBOR` value, the
+/// *argument*, selects zero or more nodes of the argument and output these nodes as a nodelist.
+/// 
+/// A `path` always begins by an identifier
+/// * `$` for absolute paths,
+/// * `@` for relative paths.
+/// This identifier is automatically included by the [`abs_path`] and the [`rel_path`] function.
+/// 
+/// A `path` is then followed by one or more [`segments`](SegmentBuilder)
 pub struct PathBuilder {
     is_absolute: bool,
     segments: Vec<Segment>,
@@ -195,18 +306,35 @@ impl PathBuilder {
         }
     }
 
+    /// Adds a `child` [`segments`](SegmentBuilder) to the `path`
+    /// 
+    /// A child segment contains a sequence of selectors, each of which selects zero or more children of the input value.
+    /// 
+    /// Selectors of different kinds may be combined within a single child segment.
+    /// Most of a time a segment contains a unique selector
     #[inline]
     pub fn child(mut self, segment: SegmentBuilder) -> Self {
         self.segments.push(segment.build(true));
         self
     }
 
+    /// Adds a `descendant` [`segments`](SegmentBuilder) to the `path`
+    /// 
+    /// A descendant segment produces zero or more descendants of the input value.
+    /// 
+    /// A descendant selector visits the input value and each of its descendants such that:
+    /// * nodes of any array are visited in array order, and
+    /// * nodes are visited before their descendants.
+    /// 
+    /// Selectors of different kinds may be combined within a single descendant segment.
+    /// Most of a time a segment contains a unique selector
     #[inline]
     pub fn descendant(mut self, segment: SegmentBuilder) -> Self {
         self.segments.push(segment.build(false));
         self
     }
 
+    /// Shortcut for a [`child`](PathBuilder::child) segment with a unique [`key`](SegmentBuilder::key) selector.
     #[inline]
     pub fn key<V: Into<Value>>(mut self, v: V) -> Self {
         self.segments
@@ -216,12 +344,14 @@ impl PathBuilder {
         self
     }
 
+    /// Shortcut for a [`child`](PathBuilder::child) segment with a unique [`wildcard`](SegmentBuilder::wildcard) selector.
     #[inline]
     pub fn wildcard(mut self) -> Self {
         self.segments.push(Segment::Child(vec![Selector::Wildcard]));
         self
     }
 
+    /// Shortcut for a [`child`](PathBuilder::child) segment with a unique [`index`](SegmentBuilder::index) selector.
     #[inline]
     pub fn index(mut self, index: isize) -> Self {
         self.segments
@@ -231,6 +361,7 @@ impl PathBuilder {
         self
     }
 
+    /// Shortcut for a [`child`](PathBuilder::child) segment with a unique [`slice`](SegmentBuilder::slice) selector.
     #[inline]
     pub fn slice(mut self, start: isize, end: isize, step: isize) -> Self {
         self.segments
@@ -240,6 +371,7 @@ impl PathBuilder {
         self
     }
 
+    /// Shortcut for a [`child`](PathBuilder::child) segment with a unique [`filter`](SegmentBuilder::filter) selector.
     #[inline]
     pub fn filter<B: Into<BooleanExprBuilder>>(mut self, boolean_expr: B) -> Self {
         self.segments
@@ -249,6 +381,7 @@ impl PathBuilder {
         self
     }
 
+    /// Build a [`CborPath`] from the builder
     #[inline]
     pub fn build(self) -> CborPath {
         CborPath::new(self.segments)
@@ -264,6 +397,9 @@ impl PathBuilder {
     }
 }
 
+/// Represents a [`path`](PathBuilder) segment.
+/// 
+/// Segments apply one or more selectors to an input value and concatenate the results into a single nodelist.
 pub struct SegmentBuilder {
     selectors: Vec<Selector>,
 }
@@ -274,19 +410,37 @@ impl SegmentBuilder {
         Self { selectors: vec![] }
     }
 
+    /// Adds a `key selector` to the segment.
+    /// 
+    /// Applying the `key selector` to a `CBOR map` node selects an item value whose `key` 
+    /// equals the item key from the selector, or selects nothing if there is no such item value. 
+    /// Nothing is selected from a value that is not a `CBOR map`.
     #[inline]
-    pub fn key<V: Into<Value>>(mut self, v: V) -> Self {
+    pub fn key<V: Into<Value>>(mut self, key: V) -> Self {
         self.selectors
-            .push(Selector::Key(KeySelector::new(v.into())));
+            .push(Selector::Key(KeySelector::new(key.into())));
         self
     }
 
+    /// Adds a `wildcard selector` to the segment.
+    /// 
+    /// A `wildcard selector` selects the nodes of all children of a map or array.
+    /// 
+    /// The wildcard selector selects nothing from a primitive `CBOR` value (that is, a number, a string, a boolean, or null).
     #[inline]
     pub fn wildcard(mut self) -> Self {
         self.selectors.push(Selector::Wildcard);
         self
     }
 
+    /// Adds an `index selector` to the segment.
+    /// 
+    /// A non-negative `index selector` applied to an array selects an array element using a zero-based index. 
+    /// 
+    /// A negative `index selector` counts from the array end. For example, the selector `-1` selects the last 
+    /// and the selector `-2` selects the penultimate element of an array with at least two elements.
+    /// 
+    /// Nothing is selected if index is out of bounds or if the value is not an array.
     #[inline]
     pub fn index(mut self, index: isize) -> Self {
         self.selectors
@@ -294,6 +448,17 @@ impl SegmentBuilder {
         self
     }
 
+    /// Adds a `slice selector` to the segment.
+    /// 
+    /// A slice expression selects a subset of the elements of the input array, 
+    /// in the same order as the array or the reverse order, 
+    /// depending on the sign of the step parameter. 
+    /// It selects no nodes from a node that is not an array.
+    /// 
+    /// A slice is defined by the two slice parameters, `start` and `end`, and an iteration delta, `step`. 
+    /// 
+    /// # See
+    /// <https://www.ietf.org/archive/id/draft-ietf-jsonpath-base-09.html#name-array-slice-selector>
     #[inline]
     pub fn slice(mut self, start: isize, end: isize, step: isize) -> Self {
         self.selectors
@@ -301,6 +466,61 @@ impl SegmentBuilder {
         self
     }
 
+    /// Adds a `filter selector` to the segment.
+    /// 
+    /// The `filter selector` works with arrays and maps exclusively. 
+    /// Its result is a list of *zero*, *one*, *multiple* or *all* of their array elements or map item values, respectively. 
+    /// Applied to primitive values, it will select nothing.
+    /// 
+    /// # Existence Tests
+    /// A [`path`](PathBuilder) by itself in a Boolean context is an existence test which yields `true`
+    /// if the path selects at least one node and yields `false` if the path does not select any nodes.
+    /// 
+    /// # Comparisons
+    /// The comparison operators `==` and `<` are defined first and then these are used to define `!=`, `<=`, `>`, and `>=`.
+    /// 
+    /// When a path resulting in an empty nodelist appears on either side of a comparison:
+    /// * a comparison using the operator `==` yields true if and only if the comparison
+    /// is between two paths each of which result in an empty nodelist.
+    /// * a comparison using the operator `<` yields false.
+    /// 
+    /// When any path on either side of a comparison results in a nodelist consisting of a single node, each such path is
+    /// replaced by the value of its node and then:
+    /// * a comparison using the operator `==` yields true if and only if the comparison
+    /// is between:
+    ///     * equal primitive values,
+    ///     * equal arrays, that is arrays of the same length where each element of the first array is equal to the corresponding
+    ///       element of the second array, or
+    ///     * equal maps with no duplicate keys, that is where:
+    ///         * both maps have the same collection of keys (with no duplicates), and
+    ///         * for each of those keys, the values associated with the key by the maps are equal. 
+    /// * a comparison using the operator `<` yields true if and only if
+    /// the comparison is between values which are both numbers or both strings and which satisfy the comparison: 
+    ///     * numbers compare using the normal mathematical ordering;
+    ///     * the empty string compares less than any non-empty string
+    ///     * a non-empty string compares less than another non-empty string if and only if the first string starts with a
+    ///       lower Unicode character value than the second string or if both strings start with the same Unicode character value and
+    ///       the remainder of the first string compares less than the remainder of the second string.
+    /// 
+    /// Note that comparisons using the operator `<` yield false if either value being
+    /// compared is a map, array, boolean, or `null`.
+    /// 
+    /// `!=`, `<=`, `>`, and `>=` are defined in terms of the other comparison operators. For any `a` and `b`:
+    /// * The comparison `a != b` yields true if and only if `a == b` yields false.
+    /// * The comparison `a <= b` yields true if and only if `a < b` yields true or `a == b` yields true.
+    /// * The comparison `a > b` yields true if and only if `b < a` yields true.
+    /// * The comparison `a >= b` yields true if and only if `b < a` yields true or `a == b` yields true.    
+    /// 
+    /// # Boolean Operators
+    /// The logical [`AND`](and), [`OR`](or), and [`NOT`](not) operators have the normal semantics of Boolean algebra and
+    /// obey its laws.
+    /// 
+    /// # Functions
+    /// Filter selectors may use any of the following functions:
+    /// * [`match`](_match)
+    /// * [`search`]
+    /// * [`length`]
+    /// * [`count`]
     #[inline]
     pub fn filter(mut self, boolean_expr: BooleanExprBuilder) -> Self {
         self.selectors
@@ -318,6 +538,7 @@ impl SegmentBuilder {
     }
 }
 
+/// Represents a `boolean expression` used within a [`filter`](SegmentBuilder::filter)
 pub struct BooleanExprBuilder {
     boolean_expr: BooleanExpr,
 }
@@ -343,6 +564,12 @@ impl From<PathBuilder> for BooleanExprBuilder {
     }
 }
 
+/// Represents a `comparable` used as an operand of a [`filter`](SegmentBuilder::filter) comparison.
+/// 
+/// A `comparable` can be
+/// * A [`value`](val)
+/// * A [`singular path`](SingularPathBuilder)
+/// * A `function` ([`match`](_match), [`search`], [`length`] or [`count`])
 pub struct ComparableBuilder {
     comparable: Comparable,
 }
@@ -375,6 +602,12 @@ impl From<Comparable> for ComparableBuilder {
     }
 }
 
+/// Represents a `singular path`.
+/// 
+/// A `singular path` is a CBORPath expression built from segments each of which, 
+/// regardless of the input value, produces a nodelist containing at most one node.
+/// 
+/// A `singular path` can be absolute (beginning with a `$`) or relative (beginning with a `@`)
 pub struct SingularPathBuilder {
     is_absolute: bool,
     segments: Vec<SingularSegment>,
@@ -389,6 +622,9 @@ impl SingularPathBuilder {
         }
     }
 
+    /// Add a key segment to the singular path.
+    /// 
+    /// Works exactly as the [`key selector`](SegmentBuilder::key)
     #[inline]
     pub fn key<V: Into<Value>>(mut self, v: V) -> SingularPathBuilder {
         self.segments
@@ -396,6 +632,9 @@ impl SingularPathBuilder {
         self
     }
 
+    /// Add an index segment to the singular path.
+    /// 
+    /// Works exactly as the [`index selector`](SegmentBuilder::index)
     #[inline]
     pub fn index(mut self, index: isize) -> SingularPathBuilder {
         self.segments
