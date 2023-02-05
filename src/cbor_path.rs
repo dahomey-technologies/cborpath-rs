@@ -1,4 +1,7 @@
-use crate::Error;
+use crate::{
+    builder::{self, PathBuilder},
+    Error,
+};
 use ciborium::{de::from_reader, ser::into_writer, value::Value};
 use regex::Regex;
 use serde::Deserialize;
@@ -9,9 +12,8 @@ pub struct CborPath(AbsolutePath);
 
 impl CborPath {
     #[inline]
-    #[allow(dead_code)]
     pub(crate) fn new(segments: Vec<Segment>) -> Self {
-        Self(AbsolutePath(segments))
+        Self(AbsolutePath::new(segments))
     }
 
     #[inline]
@@ -25,6 +27,11 @@ impl CborPath {
     #[inline]
     pub fn from_value(value: &Value) -> Result<Self, Error> {
         value.try_into()
+    }
+
+    #[inline]
+    pub fn builder() -> PathBuilder {
+        builder::abs_path()
     }
 
     #[inline]
@@ -106,14 +113,7 @@ pub(crate) enum Path {
 }
 
 impl Path {
-    pub fn abs(segments: Vec<Segment>) -> Self {
-        Self::Abs(AbsolutePath(segments))
-    }
-
-    pub fn rel(segments: Vec<Segment>) -> Self {
-        Self::Rel(RelativePath(segments))
-    }
-
+    #[inline]
     pub fn evaluate<'a>(&self, root: &'a Value, current: &'a Value) -> Vec<&'a Value> {
         match self {
             Path::Abs(path) => path.evaluate(root),
@@ -186,29 +186,6 @@ pub(crate) enum Selector {
 }
 
 impl Selector {
-    pub fn key(value: Value) -> Self {
-        Self::Key(KeySelector(value))
-    }
-
-    pub fn wildcard() -> Self {
-        Self::Wildcard
-    }
-
-    #[allow(dead_code)]
-    pub fn index(index: isize) -> Self {
-        Self::Index(IndexSelector(index))
-    }
-
-    #[allow(dead_code)]
-    pub fn slice(start: isize, end: isize, step: isize) -> Self {
-        Self::Slice(SliceSelector(start, end, step))
-    }
-
-    #[allow(dead_code)]
-    pub fn filter(boolean_expr: BooleanExpr) -> Self {
-        Self::Filter(FilterSelector(boolean_expr))
-    }
-
     fn evaluate<'a>(&self, root: &'a Value, current: &'a Value) -> Vec<&'a Value> {
         match self {
             Selector::Key(selector) => selector.evaluate(current),
@@ -224,6 +201,12 @@ impl Selector {
 pub(crate) struct KeySelector(Value);
 
 impl KeySelector {
+    #[inline]
+    pub fn new(value: Value) -> Self {
+        Self(value)
+    }
+
+    #[inline]
     fn evaluate<'a>(&self, value: &'a Value) -> Vec<&'a Value> {
         self.evaluate_single(value)
             .map(|v| vec![v])
@@ -246,6 +229,7 @@ impl KeySelector {
 pub(crate) struct WildcardSelector;
 
 impl WildcardSelector {
+    #[inline]
     fn evaluate<'a>(&self, value: &'a Value) -> Vec<&'a Value> {
         match value {
             Value::Map(map) => map.iter().map(|(_, v)| v).collect(),
@@ -259,10 +243,12 @@ impl WildcardSelector {
 pub(crate) struct IndexSelector(isize);
 
 impl IndexSelector {
+    #[inline]
     pub fn new(index: isize) -> Self {
         Self(index)
     }
 
+    #[inline]
     fn evaluate<'a>(&self, value: &'a Value) -> Vec<&'a Value> {
         self.evaluate_single(value)
             .map(|v| vec![v])
@@ -286,6 +272,7 @@ impl IndexSelector {
 pub(crate) struct SliceSelector(isize, isize, isize);
 
 impl SliceSelector {
+    #[inline]
     pub fn new(start: isize, end: isize, step: isize) -> Self {
         Self(start, end, step)
     }
@@ -332,6 +319,11 @@ pub(crate) struct FilterSelector(BooleanExpr);
 
 impl FilterSelector {
     #[inline]
+    pub fn new(boolean_expr: BooleanExpr) -> Self {
+        Self(boolean_expr)
+    }
+
+    #[inline]
     fn evaluate<'a>(&self, root: &'a Value, current: &'a Value) -> Vec<&'a Value> {
         let Self(boolean_expr) = &self;
         match current {
@@ -366,30 +358,7 @@ pub(crate) enum BooleanExpr {
 }
 
 impl BooleanExpr {
-    pub fn or(left: BooleanExpr, right: BooleanExpr) -> Self {
-        Self::Or(Box::new(left), Box::new(right))
-    }
-
-    pub fn and(left: BooleanExpr, right: BooleanExpr) -> Self {
-        Self::And(Box::new(left), Box::new(right))
-    }
-
-    pub fn not(expr: BooleanExpr) -> Self {
-        Self::Not(Box::new(expr))
-    }
-
-    pub fn comparison(left: Comparable, operator: ComparisonOperator, right: Comparable) -> Self {
-        Self::Comparison(ComparisonExpr(left, operator, right))
-    }
-
-    pub fn path(path: Path) -> Self {
-        Self::Path(path)
-    }
-
-    pub fn function(function: Function) -> Self {
-        Self::Function(function)
-    }
-
+    #[inline]
     pub fn evaluate(&self, root: &Value, current: &Value) -> bool {
         match self {
             BooleanExpr::Or(l, r) => l.evaluate(root, current) || r.evaluate(root, current),
@@ -404,7 +373,9 @@ impl BooleanExpr {
 
 #[derive(Debug, PartialEq)]
 pub(crate) struct ComparisonExpr(Comparable, ComparisonOperator, Comparable);
+
 impl ComparisonExpr {
+    #[inline]
     pub fn new(left: Comparable, operator: ComparisonOperator, right: Comparable) -> Self {
         Self(left, operator, right)
     }
@@ -522,57 +493,32 @@ pub(crate) enum ComparisonOperator {
 #[derive(Debug, PartialEq)]
 pub(crate) enum SingularPath {
     /// Absolute singular path (beginning by '$')
-    Abs(AbsSingularPath),
+    Abs(Vec<SingularSegment>),
     /// Relative singular path (beginning by '@')
-    Rel(RelSingularPath),
+    Rel(Vec<SingularSegment>),
 }
 
 impl SingularPath {
-    pub fn abs(segments: Vec<SingularSegment>) -> Self {
-        Self::Abs(AbsSingularPath(segments))
-    }
-
-    pub fn rel(segments: Vec<SingularSegment>) -> Self {
-        Self::Rel(RelSingularPath(segments))
-    }
-
     #[inline]
     pub fn evaluate<'a>(&self, root: &'a Value, current: &'a Value) -> Option<Cow<'a, Value>> {
         match self {
-            SingularPath::Abs(path) => path.evaluate(root).map(Cow::Borrowed),
-            SingularPath::Rel(path) => path.evaluate(current).map(Cow::Borrowed),
+            SingularPath::Abs(segments) => Self::evaluate_impl(segments, root),
+            SingularPath::Rel(segments) => Self::evaluate_impl(segments, current),
         }
     }
-}
 
-#[derive(Debug, PartialEq)]
-pub(crate) struct AbsSingularPath(Vec<SingularSegment>);
-
-impl AbsSingularPath {
-    fn evaluate<'a>(&self, value: &'a Value) -> Option<&'a Value> {
+    fn evaluate_impl<'a>(
+        segments: &Vec<SingularSegment>,
+        value: &'a Value,
+    ) -> Option<Cow<'a, Value>> {
         let mut current_value = value;
-        for segment in &self.0 {
+        for segment in segments {
             match segment.evaluate(current_value) {
                 Some(value) => current_value = value,
                 None => return None,
             }
         }
-        Some(current_value)
-    }
-}
-#[derive(Debug, PartialEq)]
-pub(crate) struct RelSingularPath(Vec<SingularSegment>);
-
-impl RelSingularPath {
-    fn evaluate<'a>(&self, value: &'a Value) -> Option<&'a Value> {
-        let mut current_value = value;
-        for segment in &self.0 {
-            match segment.evaluate(current_value) {
-                Some(value) => current_value = value,
-                None => return None,
-            }
-        }
-        Some(current_value)
+        Some(Cow::Borrowed(current_value))
     }
 }
 
@@ -583,14 +529,6 @@ pub(crate) enum SingularSegment {
 }
 
 impl SingularSegment {
-    pub fn key(value: Value) -> Self {
-        Self::Key(KeySelector(value))
-    }
-
-    pub fn index(index: isize) -> Self {
-        Self::Index(IndexSelector(index))
-    }
-
     #[inline]
     fn evaluate<'a>(&self, value: &'a Value) -> Option<&'a Value> {
         match self {
@@ -619,25 +557,6 @@ impl PartialEq for Function {
 }
 
 impl Function {
-    pub fn length(comparable: Comparable) -> Self {
-        Self::Length(Box::new(comparable))
-    }
-
-    pub fn count(path: Path) -> Self {
-        Self::Count(path)
-    }
-
-    pub fn _match(comparable: Comparable, regex: &str) -> Result<Self, Error> {
-        Ok(Self::Regex(
-            Box::new(comparable),
-            Regex::new(&format!("^{regex}$"))?,
-        ))
-    }
-
-    pub fn search(comparable: Comparable, regex: &str) -> Result<Self, Error> {
-        Ok(Self::Regex(Box::new(comparable), Regex::new(regex)?))
-    }
-
     fn evaluate_as_boolean_expr(&self, root: &Value, current: &Value) -> bool {
         match self {
             Function::Regex(comparable, regex) => {

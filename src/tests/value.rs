@@ -1,55 +1,49 @@
 use crate::{
-    BooleanExpr, CborPath, Comparable, ComparisonOperator, Error, Function, Path, Segment,
-    Selector, SingularPath, SingularSegment,
+    builder::{
+        abs_path, count, eq, gt, gte, length, lt, lte, neq, rel_path, segment, sing_abs_path,
+        sing_rel_path, val,
+    },
+    CborPath, Error,
 };
-use cbor_diag::parse_diag;
-use ciborium::{value::Value, de::from_reader};
+use ciborium::value::Value;
+
+use super::util::diag_to_value;
 
 fn from_cbor(cbor_diag_str: &str) -> Result<CborPath, Error> {
-    let buf = parse_diag(cbor_diag_str).unwrap().to_bytes();
-    let value: Value = from_reader(buf.as_slice()).unwrap();
+    let value = diag_to_value(cbor_diag_str);
     CborPath::from_value(&value)
 }
 
 #[test]
-fn convert_to_cbor_path() -> Result<(), Error> {
+fn deserialize_cbor_path() -> Result<(), Error> {
     let cbor_path: CborPath = from_cbor(r#""$""#)?;
-    assert_eq!(cbor_path, CborPath::new(vec![]));
+    assert_eq!(CborPath::builder().build(), cbor_path);
 
     let cbor_path: CborPath = from_cbor(r#"["$", "a"]"#)?;
-    assert_eq!(
-        cbor_path,
-        CborPath::new(vec![Segment::Child(vec![Selector::key("a".into())])])
-    );
+    assert_eq!(CborPath::builder().key("a").build(), cbor_path);
 
     let cbor_path: CborPath =
         from_cbor(r##"["$", "foo", 12, 12.12, true, 'binary', {"#": 1}, {":": [0, -1, 1]}]"##)?;
     assert_eq!(
-        cbor_path,
-        CborPath::new(vec![
-            Segment::Child(vec![Selector::key("foo".into()),]),
-            Segment::Child(vec![Selector::key(12.into()),]),
-            Segment::Child(vec![Selector::key(12.12.into()),]),
-            Segment::Child(vec![Selector::key(true.into()),]),
-            Segment::Child(vec![Selector::key(Value::Bytes(
-                "binary".as_bytes().to_vec()
-            )),]),
-            Segment::Child(vec![Selector::index(1)]),
-            Segment::Child(vec![Selector::slice(0, -1, 1)])
-        ])
+        CborPath::builder()
+            .key("foo")
+            .key(12)
+            .key(12.12)
+            .key(true)
+            .key(Value::Bytes("binary".as_bytes().to_vec()))
+            .index(1)
+            .slice(0, -1, 1)
+            .build(),
+        cbor_path
     );
 
     let cbor_path: CborPath = from_cbor(r##"["$", {"?": ["$", "a"]}, {"?": ["@", "a"]}]"##)?;
     assert_eq!(
-        cbor_path,
-        CborPath::new(vec![
-            Segment::Child(vec![Selector::filter(BooleanExpr::path(Path::abs(vec![
-                Segment::Child(vec![Selector::key("a".into()),])
-            ]))),]),
-            Segment::Child(vec![Selector::filter(BooleanExpr::path(Path::rel(vec![
-                Segment::Child(vec![Selector::key("a".into()),])
-            ]))),])
-        ])
+        CborPath::builder()
+            .filter(abs_path().key("a"))
+            .filter(rel_path().key("a"))
+            .build(),
+        cbor_path
     );
 
     let cbor_path: CborPath = from_cbor(
@@ -63,79 +57,41 @@ fn convert_to_cbor_path() -> Result<(), Error> {
         {"?": {">": [12, 13]}}]"##,
     )?;
     assert_eq!(
-        cbor_path,
-        CborPath::new(vec![
-            Segment::Child(vec![Selector::filter(BooleanExpr::comparison(
-                Comparable::Value(12.into()),
-                ComparisonOperator::Lt,
-                Comparable::Value(13.into())
-            )),]),
-            Segment::Child(vec![Selector::filter(BooleanExpr::comparison(
-                Comparable::Value(12.into()),
-                ComparisonOperator::Lte,
-                Comparable::Value(13.into())
-            )),]),
-            Segment::Child(vec![Selector::filter(BooleanExpr::comparison(
-                Comparable::Value(12.into()),
-                ComparisonOperator::Neq,
-                Comparable::SingularPath(SingularPath::abs(vec![SingularSegment::index(1)])),
-            )),]),
-            Segment::Child(vec![Selector::filter(BooleanExpr::comparison(
-                Comparable::SingularPath(SingularPath::abs(vec![SingularSegment::key("a".into())])),
-                ComparisonOperator::Eq,
-                Comparable::SingularPath(SingularPath::rel(vec![SingularSegment::key("b".into())])),
-            )),]),
-            Segment::Child(vec![Selector::filter(BooleanExpr::comparison(
-                Comparable::Value(12.into()),
-                ComparisonOperator::Gte,
-                Comparable::Value(13.into())
-            )),]),
-            Segment::Child(vec![Selector::filter(BooleanExpr::comparison(
-                Comparable::Value(12.into()),
-                ComparisonOperator::Gt,
-                Comparable::Value(13.into())
-            )),]),
-        ])
+        CborPath::builder()
+            .filter(lt(val(12), val(13)))
+            .filter(lte(val(12), val(13)))
+            .filter(neq(val(12), sing_abs_path().index(1)))
+            .filter(eq(sing_abs_path().key("a"), sing_rel_path().key("b")))
+            .filter(gte(val(12), val(13)))
+            .filter(gt(val(12), val(13)))
+            .build(),
+        cbor_path
     );
 
     let cbor_path: CborPath =
         from_cbor(r##"["$", {"?": {">=": [{"length": ["@", "authors"]}, 5]}}]"##)?;
     assert_eq!(
+        CborPath::builder()
+            .filter(gte(length(sing_rel_path().key("authors")), val(5)))
+            .build(),
         cbor_path,
-        CborPath::new(vec![Segment::Child(vec![Selector::filter(
-            BooleanExpr::comparison(
-                Comparable::Function(Function::length(Comparable::SingularPath(
-                    SingularPath::rel(vec![SingularSegment::key("authors".into())])
-                ))),
-                ComparisonOperator::Gte,
-                Comparable::Value(5.into())
-            )
-        ),]),])
     );
 
     let cbor_path: CborPath =
         from_cbor(r##"["$", {"?": {">=": [{"count": ["@", {"*": 1}, "authors"]}, 5]}}]"##)?;
     assert_eq!(
+        CborPath::builder()
+            .filter(gte(count(rel_path().wildcard().key("authors")), val(5)))
+            .build(),
         cbor_path,
-        CborPath::new(vec![Segment::Child(vec![Selector::filter(
-            BooleanExpr::comparison(
-                Comparable::Function(Function::count(Path::rel(vec![
-                    Segment::Child(vec![Selector::wildcard()]),
-                    Segment::Child(vec![Selector::key("authors".into())])
-                ]))),
-                ComparisonOperator::Gte,
-                Comparable::Value(5.into())
-            )
-        ),]),])
     );
 
     let cbor_path: CborPath = from_cbor(r#"["$", ["a", "b"]]"#)?;
     assert_eq!(
+        CborPath::builder()
+            .child(segment().key("a").key("b"))
+            .build(),
         cbor_path,
-        CborPath::new(vec![Segment::Child(vec![
-            Selector::key("a".into()),
-            Selector::key("b".into()),
-        ])])
     );
 
     Ok(())

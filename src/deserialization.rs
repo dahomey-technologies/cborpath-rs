@@ -1,7 +1,7 @@
 use crate::{
     AbsolutePath, BooleanExpr, Comparable, ComparisonOperator, FilterSelector, Function,
     IndexSelector, Path, RelativePath, Segment, Selector, SingularPath, SingularSegment,
-    SliceSelector,
+    SliceSelector, KeySelector, ComparisonExpr, builder,
 };
 use serde::{
     de::{self, value::SeqAccessDeserializer},
@@ -140,42 +140,42 @@ impl<'de> Deserialize<'de> for SegmentForDeserialization {
             where
                 E: de::Error,
             {
-                Ok(SegmentForDeserialization::Selector(Selector::key(v.into())))
+                Ok(SegmentForDeserialization::Selector(Selector::Key(KeySelector::new(v.into()))))
             }
 
             fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
             where
                 E: de::Error,
             {
-                Ok(SegmentForDeserialization::Selector(Selector::key(v.into())))
+                Ok(SegmentForDeserialization::Selector(Selector::Key(KeySelector::new(v.into()))))
             }
 
             fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
             where
                 E: de::Error,
             {
-                Ok(SegmentForDeserialization::Selector(Selector::key(v.into())))
+                Ok(SegmentForDeserialization::Selector(Selector::Key(KeySelector::new(v.into()))))
             }
 
             fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
             where
                 E: de::Error,
             {
-                Ok(SegmentForDeserialization::Selector(Selector::key(v.into())))
+                Ok(SegmentForDeserialization::Selector(Selector::Key(KeySelector::new(v.into()))))
             }
 
             fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
             where
                 E: de::Error,
             {
-                Ok(SegmentForDeserialization::Selector(Selector::key(v.into())))
+                Ok(SegmentForDeserialization::Selector(Selector::Key(KeySelector::new(v.into()))))
             }
 
             fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
             where
                 E: de::Error,
             {
-                Ok(SegmentForDeserialization::Selector(Selector::key(v.into())))
+                Ok(SegmentForDeserialization::Selector(Selector::Key(KeySelector::new(v.into()))))
             }
 
             fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
@@ -199,7 +199,7 @@ impl<'de> Deserialize<'de> for SegmentForDeserialization {
                         }
                     },
                     WILDCARD_IDENTIFIER => match map.next_value::<i32>() {
-                        Ok(i) if i == 1 => Ok(SegmentForDeserialization::Selector(Selector::wildcard())),
+                        Ok(i) if i == 1 => Ok(SegmentForDeserialization::Selector(Selector::Wildcard)),
                         _ => Err(de::Error::custom("Expected value `1`")),
                     }
                     INDEX_IDENTIFIER => Ok(SegmentForDeserialization::Selector(Selector::Index(
@@ -274,64 +274,48 @@ impl<'de> Deserialize<'de> for BooleanExpr {
 
                 match identifier.as_str() {
                     "&&" => {
-                        let (right, left) = map.next_value::<(BooleanExpr, BooleanExpr)>()?;
-                        Ok(BooleanExpr::and(right, left))
+                        let (left, right) = map.next_value::<(BooleanExpr, BooleanExpr)>()?;
+                        Ok(BooleanExpr::And(Box::new(left), Box::new(right)))
                     }
                     "||" => {
-                        let (right, left) = map.next_value::<(BooleanExpr, BooleanExpr)>()?;
-                        Ok(BooleanExpr::or(right, left))
+                        let (left, right) = map.next_value::<(BooleanExpr, BooleanExpr)>()?;
+                        Ok(BooleanExpr::Or(Box::new(left), Box::new(right)))
                     }
                     "!" => {
                         let expr = map.next_value::<BooleanExpr>()?;
-                        Ok(BooleanExpr::not(expr))
+                        Ok(BooleanExpr::Not(Box::new(expr)))
                     }
                     "<" => {
-                        let (right, left) = map.next_value::<(Comparable, Comparable)>()?;
-                        Ok(BooleanExpr::comparison(right, ComparisonOperator::Lt, left))
+                        let (left, right) = map.next_value::<(Comparable, Comparable)>()?;
+                        Ok(BooleanExpr::Comparison(ComparisonExpr::new(left, ComparisonOperator::Lt, right)))
                     }
                     "<=" => {
-                        let (right, left) = map.next_value::<(Comparable, Comparable)>()?;
-                        Ok(BooleanExpr::comparison(
-                            right,
-                            ComparisonOperator::Lte,
-                            left,
-                        ))
+                        let (left, right) = map.next_value::<(Comparable, Comparable)>()?;
+                        Ok(BooleanExpr::Comparison(ComparisonExpr::new(left, ComparisonOperator::Lte, right)))
                     }
                     "==" => {
-                        let (right, left) = map.next_value::<(Comparable, Comparable)>()?;
-                        Ok(BooleanExpr::comparison(right, ComparisonOperator::Eq, left))
+                        let (left, right) = map.next_value::<(Comparable, Comparable)>()?;
+                        Ok(BooleanExpr::Comparison(ComparisonExpr::new(left, ComparisonOperator::Eq, right)))
                     }
                     "!=" => {
-                        let (right, left) = map.next_value::<(Comparable, Comparable)>()?;
-                        Ok(BooleanExpr::comparison(
-                            right,
-                            ComparisonOperator::Neq,
-                            left,
-                        ))
+                        let (left, right) = map.next_value::<(Comparable, Comparable)>()?;
+                        Ok(BooleanExpr::Comparison(ComparisonExpr::new(left, ComparisonOperator::Neq, right)))
                     }
                     ">=" => {
-                        let (right, left) = map.next_value::<(Comparable, Comparable)>()?;
-                        Ok(BooleanExpr::comparison(
-                            right,
-                            ComparisonOperator::Gte,
-                            left,
-                        ))
+                        let (left, right) = map.next_value::<(Comparable, Comparable)>()?;
+                        Ok(BooleanExpr::Comparison(ComparisonExpr::new(left, ComparisonOperator::Gte, right)))
                     }
                     ">" => {
-                        let (right, left) = map.next_value::<(Comparable, Comparable)>()?;
-                        Ok(BooleanExpr::comparison(right, ComparisonOperator::Gt, left))
+                        let (left, right) = map.next_value::<(Comparable, Comparable)>()?;
+                        Ok(BooleanExpr::Comparison(ComparisonExpr::new(left, ComparisonOperator::Gt, right)))
                     }
                     "match" => {
                         let (comparable, regex) = map.next_value::<(Comparable, String)>()?;
-                        Ok(BooleanExpr::function(
-                            Function::_match(comparable, &regex).map_err(de::Error::custom)?,
-                        ))
+                        Ok(builder::_match(comparable, &regex).map_err(de::Error::custom)?.build())
                     }
                     "search" => {
                         let (comparable, regex) = map.next_value::<(Comparable, String)>()?;
-                        Ok(BooleanExpr::function(
-                            Function::search(comparable, &regex).map_err(de::Error::custom)?,
-                        ))
+                        Ok(builder::search(comparable, &regex).map_err(de::Error::custom)?.build())
                     }
                     _ => Err(de::Error::invalid_value(
                         de::Unexpected::Str(identifier.as_str()),
@@ -345,7 +329,7 @@ impl<'de> Deserialize<'de> for BooleanExpr {
                 A: de::SeqAccess<'de>,
             {
                 let path = Path::deserialize(SeqAccessDeserializer::new(seq))?;
-                Ok(BooleanExpr::path(path))
+                Ok(BooleanExpr::Path(path))
             }
         }
 
@@ -396,9 +380,9 @@ impl<'de> Deserialize<'de> for Path {
                 }
 
                 if is_absolute_path {
-                    Ok(Path::abs(segments))
+                    Ok(Path::Abs(AbsolutePath::new(segments)))
                 } else {
-                    Ok(Path::rel(segments))
+                    Ok(Path::Rel(RelativePath::new(segments)))
                 }
             }
         }
@@ -480,8 +464,8 @@ impl<'de> Deserialize<'de> for Comparable {
                 };
 
                 match identifier.as_str() {
-                    "length" => Ok(Comparable::Function(Function::length(map.next_value()?))),
-                    "count" => Ok(Comparable::Function(Function::count(map.next_value()?))),
+                    "length" => Ok(Comparable::Function(Function::Length(Box::new(map.next_value()?)))),
+                    "count" => Ok(Comparable::Function(Function::Count(map.next_value()?))),
                     _ => Err(de::Error::invalid_value(
                         de::Unexpected::Str(&identifier),
                         &"`length` or `count`",
@@ -537,9 +521,9 @@ impl<'de> Deserialize<'de> for SingularPath {
                 }
 
                 if is_absolute_path {
-                    Ok(SingularPath::abs(segments))
+                    Ok(SingularPath::Abs(segments))
                 } else {
-                    Ok(SingularPath::rel(segments))
+                    Ok(SingularPath::Rel(segments))
                 }
             }
         }
@@ -566,42 +550,42 @@ impl<'de> Deserialize<'de> for SingularSegment {
             where
                 E: de::Error,
             {
-                Ok(SingularSegment::key(v.into()))
+                Ok(SingularSegment::Key(KeySelector::new(v.into())))
             }
 
             fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
             where
                 E: de::Error,
             {
-                Ok(SingularSegment::key(v.into()))
+                Ok(SingularSegment::Key(KeySelector::new(v.into())))
             }
 
             fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
             where
                 E: de::Error,
             {
-                Ok(SingularSegment::key(v.into()))
+                Ok(SingularSegment::Key(KeySelector::new(v.into())))
             }
 
             fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
             where
                 E: de::Error,
             {
-                Ok(SingularSegment::key(v.into()))
+                Ok(SingularSegment::Key(KeySelector::new(v.into())))
             }
 
             fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
             where
                 E: de::Error,
             {
-                Ok(SingularSegment::key(v.into()))
+                Ok(SingularSegment::Key(KeySelector::new(v.into())))
             }
 
             fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
             where
                 E: de::Error,
             {
-                Ok(SingularSegment::key(v.into()))
+                Ok(SingularSegment::Key(KeySelector::new(v.into())))
             }
 
             fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
@@ -613,7 +597,7 @@ impl<'de> Deserialize<'de> for SingularSegment {
                 };
 
                 match identifier.as_str() {
-                    INDEX_IDENTIFIER => Ok(SingularSegment::index(map.next_value()?)),
+                    INDEX_IDENTIFIER => Ok(SingularSegment::Index(IndexSelector::new(map.next_value()?))),
                     _ => Err(de::Error::invalid_value(
                         de::Unexpected::Str(&identifier),
                         &format!("`{INDEX_IDENTIFIER}`").as_str(),

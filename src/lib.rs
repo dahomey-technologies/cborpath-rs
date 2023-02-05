@@ -8,16 +8,16 @@ CBORPath is an adaptation of JSONPath to [CBOR](https://www.rfc-editor.org/rfc/r
 
 | JSONPath            | CBORPath                | Description                                                                                                             |
 |---------------------|-------------------------|-------------------------------------------------------------------------------------------------------------------------|
-| `$`                 | `"$"`                   | [root node identifier](#root-identifier)                                                                                |
-| `@`                 | `"@"`                   | [current node identifier](#filter-selector) (valid only within filter selectors)                                        |
-| `[<selectors>]`     | `[<selectors>]`         | [child segment](#child-segment) selects zero or more children of a node; contains one or more selectors, separated by commas |
-| `..[<selectors>]`   | `{"..": [<selectors>]}` | [descendant segment](#descendant-segment): selects zero or more descendants of a node; contains one or more selectors, separated by commas |
-| `'name'`            | `<CBOR Text>`<br>`<CBOR Bytes>`<br>`<CBOR Integer>`<br>`<CBOR Float>`<br>`<CBOR Boolean>`<br>`<CBOR Null>` | [key selector](#key-selector): selects a child of a CBOR Map based on the child key |
-| `*`                 | `"*"`                   | [wildcard selector](#key-selector): selects all children of a node                                                      |
-| `3`                 | `{"#": <index> }`       | [index selector](#index-selector): selects an indexed child of an array (from 0)                                        |
-| `0:100:5`           | `{":": [<start>, <end>, <step>]}` | [array slice selector](#slice): start:end:step for arrays                                                     |
-| `?<expr>`           | `{"?": <expr>}`         | [filter selector](#filter-selector): selects particular children using a boolean expression                             |
-| `length(@.foo)`     | `{"length": ["@", "foo"]}` | [function extension](#fnex): invokes a function in a filter expression                                               |
+| `$`                 | `"$"`                   | root node identifier                                                                               |
+| `@`                 | `"@"`                   | current node identifier (valid only within filter selectors)                                        |
+| `[<selectors>]`     | `[<selectors>]`         | child segment selects zero or more children of a node; contains one or more selectors, separated by commas |
+| `..[<selectors>]`   | `{"..": [<selectors>]}` | descendant segment: selects zero or more descendants of a node; contains one or more selectors, separated by commas |
+| `'name'`            | `<CBOR Text>`<br>`<CBOR Bytes>`<br>`<CBOR Integer>`<br>`<CBOR Float>`<br>`<CBOR Boolean>`<br>`<CBOR Null>` | key selector: selects a child of a CBOR Map based on the child key |
+| `*`                 | `{"*": 1}`                   | wildcard selector: selects all children of a node                                                      |
+| `3`                 | `{"#": <index> }`       | index selector: selects an indexed child of an array (from 0)                                        |
+| `0:100:5`           | `{":": [<start>, <end>, <step>]}` | array slice selector: start:end:step for arrays                                                     |
+| `?<expr>`           | `{"?": <expr>}`         | filter selector: selects particular children using a boolean expression                             |
+| `length(@.foo)`     | `{"length": ["@", "foo"]}` | function extension: invokes a function in a filter expression                                               |
 
 ## Examples
 
@@ -63,19 +63,20 @@ This table shows some CBORPath queries that might be applied to this example and
 
 | JSONPath                        | CBORPath                       | Intended result                                                                     |
 |---------------------------------|------------------------------------------------------|---------------------------------------------------------------|
-| `$.store.book[*].author`        | `["$", "store", "book", "*", "author"]`              | the authors of all books in the store                         |
+| `$.store.book[*].author`        | `["$", "store", "book", {"*": 1}, "author"]`              | the authors of all books in the store                         |
 | `$..author`                     | `["$", {"..": "author"}]`                            | all authors                                                   |
-| `$.store.*`                     | `["$", "store", "*"]`                                | all things in store, which are some books and a red bicycle   |
+| `$.store.*`                     | `["$", "store", {"*": 1}]`                                | all things in store, which are some books and a red bicycle   |
 | `$.store..price`                | `["$", "store", {"..": "price"}]`                    | the prices of everything in the store                         |
 | `$..book[2]`                    | `["$", {"..": ["book", {"#": 2}]}]`                  | the third book                                                |
 | `$..book[-1]`                   | `["$", {"..": ["book", {"#": -1}]}]`                 | the last book in order                                        |
 | `$..book[0,1]`<br>`$..book[:2]` | `["$", {"..": ["book", [{"#": 0}, {"#": 1}]]}]`<br>`["$", {"..": ["book", {":": [0, 1, 1]}]}]` | the first two books |
 | `$..book[?(@.isbn)]`            | `["$", {"..": {"?": ["@", "isbn"]}}]`                | all books with an ISBN number                                 |
 | `$..book[?(@.price<10)]`        | `["$", {"..": {"?": {"<": [["@", "price"], 10]}}}]`  | all books cheaper than 10                                     |
-| `$..*`                          | `["$": {"..": *}]`                                   | all member values and array elements contained in input value |
+| `$..*`                          | `["$": {"..": {"*": 1}}]`                                   | all member values and array elements contained in input value |
 
 */
 
+pub mod builder;
 mod cbor_path;
 mod deserialization;
 mod error;

@@ -1,6 +1,7 @@
 use crate::{
-    BooleanExpr, CborPath, Comparable, ComparisonExpr, ComparisonOperator, Error, Function,
-    IndexSelector, Path, Segment, Selector, SingularPath, SingularSegment, SliceSelector,
+    builder, AbsolutePath, BooleanExpr, CborPath, Comparable, ComparisonExpr, ComparisonOperator,
+    Error, FilterSelector, Function, IndexSelector, KeySelector, Path, RelativePath, Segment,
+    Selector, SingularPath, SingularSegment, SliceSelector,
 };
 use ciborium::value::Value;
 
@@ -19,8 +20,8 @@ impl TryFrom<&Value> for Path {
     fn try_from(value: &Value) -> Result<Self, Self::Error> {
         match value {
             Value::Text(identifier) => match identifier.as_str() {
-                "$" => Ok(Path::abs(vec![])),
-                "@" => Ok(Path::rel(vec![])),
+                "$" => Ok(Path::Abs(AbsolutePath::new(vec![]))),
+                "@" => Ok(Path::Rel(RelativePath::new(vec![]))),
                 _ => Err(Error::Conversion(
                     "Expected path identifier `$` or `@`".to_owned(),
                 )),
@@ -50,9 +51,9 @@ impl TryFrom<&Value> for Path {
                 }
 
                 if is_absolute_path {
-                    Ok(Path::abs(segments))
+                    Ok(Path::Abs(AbsolutePath::new(segments)))
                 } else {
-                    Ok(Path::rel(segments))
+                    Ok(Path::Rel(RelativePath::new(segments)))
                 }
             }
             _ => Err(Error::Conversion(format!(
@@ -134,8 +135,12 @@ impl TryFrom<&Value> for SegmentForConversion {
             | Value::Bytes(_)
             | Value::Float(_)
             | Value::Bool(_)
-            | Value::Null => Ok(SegmentForConversion::Selector(Selector::key(value.clone()))),
-            Value::Text(_) => Ok(SegmentForConversion::Selector(Selector::key(value.clone()))),
+            | Value::Null => Ok(SegmentForConversion::Selector(Selector::Key(
+                KeySelector::new(value.clone()),
+            ))),
+            Value::Text(_) => Ok(SegmentForConversion::Selector(Selector::Key(
+                KeySelector::new(value.clone()),
+            ))),
             Value::Array(a) => {
                 let selectors = a
                     .iter()
@@ -173,8 +178,8 @@ impl TryFrom<&Value> for SegmentForConversion {
                     ":" => Ok(SegmentForConversion::Selector(Selector::Slice(
                         value.try_into()?,
                     ))),
-                    "?" => Ok(SegmentForConversion::Selector(Selector::filter(
-                        value.try_into()?,
+                    "?" => Ok(SegmentForConversion::Selector(Selector::Filter(
+                        FilterSelector::new(value.try_into()?),
                     ))),
                     _ => Err(Error::Conversion(
                         "Expected identifier `..`, `#`, `:` or `?`".to_owned(),
@@ -230,7 +235,7 @@ impl TryFrom<&Value> for BooleanExpr {
 
     fn try_from(value: &Value) -> Result<Self, Self::Error> {
         match value {
-            Value::Array(_) => Ok(BooleanExpr::path(value.try_into()?)),
+            Value::Array(_) => Ok(BooleanExpr::Path(value.try_into()?)),
             Value::Map(m) => {
                 let Some((Value::Text(identifier), value)) = m.first() else {
                 return Err(Error::Conversion("Expected a single element map".to_owned()));
@@ -240,9 +245,10 @@ impl TryFrom<&Value> for BooleanExpr {
                     "&&" => {
                         if let Value::Array(a) = value {
                             match &a[..] {
-                                [left, right] => {
-                                    Ok(BooleanExpr::and(left.try_into()?, right.try_into()?))
-                                }
+                                [left, right] => Ok(BooleanExpr::And(
+                                    Box::new(left.try_into()?),
+                                    Box::new(right.try_into()?),
+                                )),
                                 _ => Err(Error::Conversion(format!(
                                     "Cannot parse boolean expression from `{value:?}`"
                                 ))),
@@ -256,9 +262,10 @@ impl TryFrom<&Value> for BooleanExpr {
                     "||" => {
                         if let Value::Array(a) = value {
                             match &a[..] {
-                                [left, right] => {
-                                    Ok(BooleanExpr::and(left.try_into()?, right.try_into()?))
-                                }
+                                [left, right] => Ok(BooleanExpr::Or(
+                                    Box::new(left.try_into()?),
+                                    Box::new(right.try_into()?),
+                                )),
                                 _ => Err(Error::Conversion(format!(
                                     "Cannot parse boolean expression from `{value:?}`"
                                 ))),
@@ -269,16 +276,18 @@ impl TryFrom<&Value> for BooleanExpr {
                             )))
                         }
                     }
-                    "!" => Ok(BooleanExpr::not(value.try_into()?)),
+                    "!" => Ok(BooleanExpr::Not(Box::new(value.try_into()?))),
                     "<" | "<=" | "==" | "!=" | ">=" | ">" => Ok(BooleanExpr::Comparison(
                         (identifier.as_str(), value).try_into()?,
                     )),
                     "match" => {
                         if let Value::Array(a) = value {
                             match &a[..] {
-                                [comparable, Value::Text(regex)] => Ok(BooleanExpr::function(
-                                    Function::_match(comparable.try_into()?, regex.as_str())?,
-                                )),
+                                [comparable, Value::Text(regex)] => Ok(builder::_match(
+                                    TryInto::<Comparable>::try_into(comparable)?,
+                                    regex.as_str(),
+                                )?
+                                .build()),
                                 _ => Err(Error::Conversion(format!(
                                     "Cannot parse match function from `{value:?}`"
                                 ))),
@@ -292,9 +301,11 @@ impl TryFrom<&Value> for BooleanExpr {
                     "search" => {
                         if let Value::Array(a) = value {
                             match &a[..] {
-                                [comparable, Value::Text(regex)] => Ok(BooleanExpr::function(
-                                    Function::search(comparable.try_into()?, regex.as_str())?,
-                                )),
+                                [comparable, Value::Text(regex)] => Ok(builder::search(
+                                    TryInto::<Comparable>::try_into(comparable)?,
+                                    regex.as_str(),
+                                )?
+                                .build()),
                                 _ => Err(Error::Conversion(format!(
                                     "Cannot parse search function from `{value:?}`"
                                 ))),
@@ -374,8 +385,10 @@ impl TryFrom<&Value> for Comparable {
             };
 
                 match identifier.as_str() {
-                    "length" => Ok(Comparable::Function(Function::length(value.try_into()?))),
-                    "count" => Ok(Comparable::Function(Function::count(value.try_into()?))),
+                    "length" => Ok(Comparable::Function(Function::Length(Box::new(
+                        value.try_into()?,
+                    )))),
+                    "count" => Ok(Comparable::Function(Function::Count(value.try_into()?))),
                     _ => Err(Error::Conversion(
                         "Expected `length` or `count` function".to_owned(),
                     )),
@@ -416,9 +429,9 @@ impl TryFrom<&Vec<Value>> for SingularPath {
         }
 
         if is_absolute_path {
-            Ok(SingularPath::abs(segments))
+            Ok(SingularPath::Abs(segments))
         } else {
-            Ok(SingularPath::rel(segments))
+            Ok(SingularPath::Rel(segments))
         }
     }
 }
@@ -433,7 +446,7 @@ impl TryFrom<&Value> for SingularSegment {
             | Value::Float(_)
             | Value::Text(_)
             | Value::Bool(_)
-            | Value::Null => Ok(SingularSegment::key(value.clone())),
+            | Value::Null => Ok(SingularSegment::Key(KeySelector::new(value.clone()))),
             Value::Map(m) => {
                 let Some((Value::Text(identifier), value)) = m.first() else {
                 return Err(Error::Conversion("Expected a single element map".to_owned()));
