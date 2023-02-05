@@ -7,6 +7,10 @@ use regex::Regex;
 use serde::Deserialize;
 use std::{borrow::Cow, cmp::Ordering, fmt, iter::once, vec};
 
+/// Represents a CBORPath expression
+/// 
+/// Once constructed, this structure can be used efficiently multiple times 
+/// to apply the CBOR Path expression on different CBOR documents.
 #[derive(Debug, PartialEq, Deserialize)]
 pub struct CborPath(AbsolutePath);
 
@@ -16,38 +20,68 @@ impl CborPath {
         Self(AbsolutePath::new(segments))
     }
 
+    /// Initialize a `CborPath` instance from a [`CBOR binary buffer`](https://docs.rs/ciborium-io/latest/ciborium_io/trait.Read.html) by using serde deserialization
+    /// # Return
+    /// A new `CborPath` instance or an error if the provided buffer is neither a valid `CBOR` buffer nor a valid `CBORPath` expression.
     #[inline]
     pub fn from_reader<R: ciborium_io::Read>(reader: R) -> Result<Self, Error>
     where
         R::Error: fmt::Debug,
     {
-        from_reader(reader).map_err(|e| Error::Serialization(e.to_string()))
+        from_reader(reader).map_err(|e| Error::Deserialization(e.to_string()))
     }
 
+    /// Initialize a `CborPath` instance from a [`CBOR value`](https://docs.rs/ciborium/latest/ciborium/value/enum.Value.html) reference
+    /// # Return
+    /// A new `CborPath` instance or an error if the provided buffer is the provided [`CBOR value`] is not a valid `CBORPath` expression.
     #[inline]
-    pub fn from_value(value: &Value) -> Result<Self, Error> {
-        value.try_into()
+    pub fn from_value(cbor: &Value) -> Result<Self, Error> {
+        cbor.try_into()
     }
 
+    /// Initialize a `CborPath` instance from a [`builder`](crate::builder::PathBuilder)
+    /// # Return
+    /// A new `CborPath` instance
     #[inline]
     pub fn builder() -> PathBuilder {
         builder::abs_path()
     }
 
+    /// Applies the CBORPath expression to the input `CBOR` document
+    /// # Return
+    /// The result `CBOR` nodes in the form of a vector of 
+    /// [`CBOR Value`](https://docs.rs/ciborium/latest/ciborium/value/enum.Value.html) references
+    /// 
+    /// Apart from the vector in itself, this function does not allocate any memory.
+    /// All the `CBOR Value` references are issued from the input reference
+    /// 
+    /// By convention, this process does not issue any error. 
+    /// If the CBORPath expression does not match the input value, an empty vector will be returned
     #[inline]
-    pub fn evaluate<'a>(&self, value: &'a Value) -> Vec<&'a Value> {
-        self.0.evaluate(value)
+    pub fn evaluate<'a>(&self, cbor: &'a Value) -> Vec<&'a Value> {
+        self.0.evaluate(cbor)
     }
 
+    /// Applies the CBORPath expression to the input `CBOR` document
+    /// # Return
+    /// A binarized `CBOR` document.
+    /// 
+    /// The returned value is always in a the form of a `CBOR Array` which contains all the results `CBOR` nodes
+    /// 
+    /// The evaluation in itself does not raise any error. 
+    /// If the CBORPath expression does not match the input value, an empty `CBOR Array` will be returned
+    /// 
+    /// Errors can only occur if the input buffer is not a valid `CBOR` document
+    /// or if the output `CBOR` document cannot be written to the output buffer.
     #[inline]
     pub fn evaluate_from_reader<R: ciborium_io::Read>(&self, reader: R) -> Result<Vec<u8>, Error>
     where
         R::Error: fmt::Debug,
     {
-        let value: Value = from_reader(reader).map_err(|e| Error::Serialization(e.to_string()))?;
+        let value: Value = from_reader(reader).map_err(|e| Error::External(e.to_string()))?;
         let result = self.evaluate(&value);
         let mut buf = Vec::new();
-        into_writer(&result, &mut buf).map_err(|e| Error::Serialization(e.to_string()))?;
+        into_writer(&result, &mut buf).map_err(|e| Error::External(e.to_string()))?;
         Ok(buf)
     }
 }

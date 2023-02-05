@@ -3,10 +3,19 @@ use std::{
     str,
 };
 
+/// All error kinds
 #[derive(Debug)]
 pub enum Error {
+    /// Raised if an error occurs while converting a [`Value`](https://docs.rs/ciborium/latest/ciborium/value/enum.Value.html) to a [`CborPath`](crate::CborPath)
+    /// # See
+    /// [`CborPath::from_value`](crate::CborPath::from_value)
     Conversion(String),
-    Serialization(String)
+    /// Raised if an error occurs while deserializing a [`CborPath`](crate::CborPath)
+    /// # See
+    /// [`CborPath::from_reader`](crate::CborPath::from_reader)
+    Deserialization(String),
+    /// Raised by external crates like [`ciborium`](https://docs.rs/ciborium)
+    External(String)
 }
 
 impl From<str::Utf8Error> for Error {

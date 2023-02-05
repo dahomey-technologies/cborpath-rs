@@ -30,7 +30,7 @@ This section is informative. It provides examples of CBORPath expressions.
 
 The examples are based on the simple CBOR value representing a bookstore (that also has a bicycle).
 
-~~~~cbor
+```json
 { "store": {
     "book": [
       { "category": "reference",
@@ -62,7 +62,7 @@ The examples are based on the simple CBOR value representing a bookstore (that a
     }
   }
 }
-~~~~
+```
 
 This table shows some CBORPath queries that might be applied to this example and their intended results.
 
