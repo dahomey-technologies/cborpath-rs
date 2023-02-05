@@ -71,7 +71,7 @@ This table shows some CBORPath queries that might be applied to this example and
 | `$..book[2]`                    | `["$", {"..": "book"}, {"#": 2}]  `                  | the third book                                                |
 | `$..book[-1]`                   | `["$", {"..": "book"}, {"#": -1}]`                   | the last book in order                                        |
 | `$..book[0,1]`<br>`$..book[:2]` | `["$", {"..": "book"}, [{"#": 0}, {"#": 1}]]`<br>`["$", {"..": "book"}, {":": [0, 2, 1]}]` | the first two books     |
-| `$..book[?(@.isbn)]`            | `["$", {"..": "book"}, {"?": ["@", "isbn"]}]         | all books with an ISBN number                                 |
+| `$..book[?(@.isbn)]`            | `["$", {"..": "book"}, {"?": ["@", "isbn"]}]`        | all books with an ISBN number                                 |
 | `$..book[?(@.price<10)]`        | `["$", {"..": "book"}, {"?": {"<": [["@", "price"], 10.0]}}]`  | all books cheaper than 10                           |
 | `$..*`                          | `["$", {"..": {"*": 1}}]`                            | all member values and array elements contained in input value |
 
