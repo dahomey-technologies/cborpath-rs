@@ -15,14 +15,16 @@ CBORPath is an adaptation of JSONPath to [CBOR](https://www.rfc-editor.org/rfc/r
 |---------------------|-------------------------|-------------------------------------------------------------------------------------------------------------------------|
 | `$`                 | `"$"`                   | root node identifier                                                                                                    |
 | `@`                 | `"@"`                   | current node identifier (valid only within filter selectors)                                                            |
-| `[<selectors>]`     | `[<selectors>]`         | child segment: selects zero or more children of a node; contains one or more selectors, separated by commas             |
-| `..[<selectors>]`   | `{"..": [<selectors>]}` | descendant segment: selects zero or more descendants of a node; contains one or more selectors, separated by commas     |
-| `'name'`            | `<CBOR Text>`<br>`<CBOR Bytes>`<br>`<CBOR Integer>`<br>`<CBOR Float>`<br>`<CBOR Boolean>`<br>`<CBOR Null>` | key selector: selects a child of a CBOR Map based on the child key |
+| `[<selectors>]`     | `[<selectors>]`<br>`<selector>` | child segment: selects zero or more children of a node; contains one or more selectors, separated by commas             |
+| `..[<selectors>]`   | `{"..": [<selectors>]}`<br>`{"..": <selector>}` | descendant segment: selects zero or more descendants of a node; contains one or more selectors, separated by commas     |
+| `'<name>'`          | `<CBOR Text>`<br>`<CBOR Bytes>`<br>`<CBOR Integer>`<br>`<CBOR Float>`<br>`<CBOR Boolean>`<br>`<CBOR Null>` | key selector: selects a child of a CBOR Map based on the child key |
 | `*`                 | `{"*": 1}`              | wildcard selector: selects all children of a node                                                                       |
-| `3`                 | `{"#": <index> }`       | index selector: selects an indexed child of an array (from 0)                                                           |
-| `0:100:5`           | `{":": [<start>, <end>, <step>]}` | array slice selector: start:end:step for arrays                                                               |
+| `<index>`           | `{"#": <index> }`       | index selector: selects an indexed child of an array (from 0)                                                           |
+| `<start>:<end>:<step>` | `{":": [<start>, <end>, <step>]}` | array slice selector: start:end:step for arrays                                                               |
 | `?<expr>`           | `{"?": <expr>}`         | filter selector: selects particular children using a boolean expression                                                 |
-| `length(@.foo)`     | `{"length": ["@", "foo"]}` | function extension: invokes a function in a filter expression                                                        |
+| `<boolean-expr>&&<boolean-expr>`<br>`<boolean-expr>\|\|<boolean-expr>`<br>`!<boolean-expr>` | `{"&&": [<boolean-expr>, <boolean-expr>]}`<br>`{"\|\|": [<boolean-expr>, <boolean-expr>]}`<br>`{"!":<boolean-expr>}` | logical expression in a filter expression | 
+| `<comparable>==<comparable>` | `{"==":[<comparable>, <comparable>]}` | comparaison expression in a filter expression |
+| `length(<comparable>)` | `{"length": <comparable>}` | function extension: invokable in a filter expression                                                        |
 
 ## Examples
 
