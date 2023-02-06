@@ -3,22 +3,80 @@
 cborpath is a CBORPath engine written in Rust.
 
 # CBORPath
-CBORPath is an adaptation of JSONPath to [CBOR](https://www.rfc-editor.org/rfc/rfc8949.html) based on the [JSONPath RFC Draft](https://www.ietf.org/archive/id/draft-ietf-jsonpath-base-09.html)
+CBORPath is an adaptation of JSONPath to [CBOR](https://www.rfc-editor.org/rfc/rfc8949.html) 
+based on the [JSONPath RFC Draft](https://www.ietf.org/archive/id/draft-ietf-jsonpath-base-09.html)
 
 ## Syntax summary
+### Path
+A `path` expression is a `CBOR Array` which, when applied to a `CBOR` value, the
+*argument*, selects zero or more nodes of the argument and output these nodes as a nodelist.
+ 
+A `path` always begins by an identifier
+* a root identifier (`$`) for absolute paths,
+* a current node identifier (`@`) for relative paths. relative path are always used in a filter context.
+ 
+A `path` is then followed by one or more `segments`.
 
-| JSONPath            | CBORPath                | Description                                                                                                             |
-|---------------------|-------------------------|-------------------------------------------------------------------------------------------------------------------------|
-| `$`                 | `"$"`                   | root node identifier                                                                                                    |
-| `@`                 | `"@"`                   | current node identifier (valid only within filter selectors)                                                            |
-| `[<selectors>]`     | `[<selectors>]`         | child segment selects zero or more children of a node; contains one or more selectors, separated by commas              |
-| `..[<selectors>]`   | `{"..": [<selectors>]}` | descendant segment: selects zero or more descendants of a node; contains one or more selectors, separated by commas     |
-| `'name'`            | `<CBOR Text>`<br>`<CBOR Bytes>`<br>`<CBOR Integer>`<br>`<CBOR Float>`<br>`<CBOR Boolean>`<br>`<CBOR Null>` | key selector: selects a child of a CBOR Map based on the child key |
-| `*`                 | `{"*": 1}`              | wildcard selector: selects all children of a node                                                                       |
-| `3`                 | `{"#": <index> }`       | index selector: selects an indexed child of an array (from 0)                                                           |
-| `0:100:5`           | `{":": [<start>, <end>, <step>]}` | array slice selector: start:end:step for arrays                                                               |
-| `?<expr>`           | `{"?": <expr>}`         | filter selector: selects particular children using a boolean expression                                                 |
-| `length(@.foo)`     | `{"length": ["@", "foo"]}` | function extension: invokes a function in a filter expression                                                        |
+| Syntax                                        | Description                                                                                                             |
+|-----------------------------------------------|-------------------------------------------------------------------------------------------------------------------------|
+| `["$", <segments>]`                           | an absolute path composed by an array of segments<br> and which always begins by a root identifier (`$`)                |
+| `["@", <segments>]`                           | a relative path composed by an array of segments<br> and which always begins by a current node identifier (`@`)         |
+
+### Segment
+`Segments` apply one or more `selectors` to an input value and concatenate the results into a single nodelist.
+
+| Syntax                                        | Description                                                                                                             |
+|-----------------------------------------------|-------------------------------------------------------------------------------------------------------------------------|
+| `[<selectors>]`                               | a `child segment`, composed by one ore more `selectors`                                                                 |
+| `<selector>`                                  | shortcut for a `child segment`, composed by a unique `selector`                                                         |
+| `{"..": [<selectors>]}`                       | a `descendant segment`, composed by one ore more `selectors`                                                            |
+| `{"..": <selector>}`                          | shortcut for a `descendant segment`, composed by a unique `selector`                                                    |
+
+### Selector
+A selector produces a nodelist consisting of zero or more children of the input value.
+
+| Syntax                                        | Description                                                                                                             |
+|-----------------------------------------------|-------------------------------------------------------------------------------------------------------------------------|
+| `<CBOR Text>`<br>`<CBOR Bytes>`<br>`<CBOR Integer>`<br>`<CBOR Float>`<br>`<CBOR Boolean>`<br>`<CBOR Null>` | `key selector`: selects a child of a CBOR Map based on the child key |
+| `{"*": 1}`                                    | `wildcard selector`: selects all children of a node                                                                     |
+| `{"#": <index> }`                             | `index selector`: selects an indexed child of an array (from 0)                                                         |
+| `{":": [<start>, <end>, <step>]}`             | `array slice selector`: selects a subset of the elements of an array<br>(between `start` and `end` with a `step`)       |
+| `{"?": <boolean-expr>}`                       | `filter selector`: selects particular children using a boolean expression                                               |
+
+### Boolean expression
+A boolean expression returns `true` or `false` and is used by a `filter selector` to filter array elements or map items.
+
+| Syntax                                        | Description                                                                                                             |
+|-----------------------------------------------|-------------------------------------------------------------------------------------------------------------------------|
+| `{"&&": [<boolean-expr>, <boolean-expr>]}`    | logical `AND`                                                                                                           |
+| `{"\|\|": [<boolean-expr>, <boolean-expr>]}`  | logical `OR`                                                                                                            |
+| `{"!": <boolean-expr>}`                       | logical `NOT`                                                                                                           |
+| `{"<=": [<comparable>, <comparable>]}`        | comparison `lesser than or equal                                                                                        |
+| `{"<": [<comparable>, <comparable>]}`         | comparison `lesser than`                                                                                                |
+| `{"==": [<comparable>, <comparable>]}`        | comparison `equal`                                                                                                      |
+| `{"!=": [<comparable>, <comparable>]}`        | comparison `not equal`                                                                                                  |
+| `{">": [<comparable>, <comparable>]}`         | comparison `greater than`                                                                                               |
+| `{">=": [<comparable>, <comparable>]}`        | comparison `greater than or equal`                                                                                      |
+| `{"match": [<comparable>, <regex>]}`          | match function to compute a regular expression full match.<br>returns a boolean                                         |
+| `{"search": [<comparable>, <regex>]}`         | length function to compute a regular expression substring match.<br>returns a boolean                                   |
+
+### Comparable
+A `comparable` is an operand of a `filter` comparison or an argument of a function.
+
+| Syntax                                        | Description                                                                                                             |
+|-----------------------------------------------|-------------------------------------------------------------------------------------------------------------------------|
+| `<CBOR Text>`<br>`<CBOR Bytes>`<br>`<CBOR Integer>`<br>`<CBOR Float>`<br>`<CBOR Boolean>`<br>`<CBOR Null>` | a `CBOR` value                                             |
+| `["$", <singular-segments>]`<br>`["@", <singular-segments>]` | a singular path (path which procudes a nodelist containing at most one node)                             |
+| `{"length": <comparable>}`                    | length function to compute the length of a value.<br>returns an unsigned integer                                        |
+| `{"count": <path>}`                           | count function to compute the number of nodes in a path.<br>returns an unsigned integer                                 |
+
+### Singular Segment
+A `singular segment` produces a nodelist containing at most one node.
+
+| Syntax                                        | Description                                                                                                             |
+|-----------------------------------------------|-------------------------------------------------------------------------------------------------------------------------|
+| `<CBOR Text>`<br>`<CBOR Bytes>`<br>`<CBOR Integer>`<br>`<CBOR Float>`<br>`<CBOR Boolean>`<br>`<CBOR Null>` | `key selector`: selects a child of a CBOR Map based on the child key |
+| `{"#": <index> }`                             | `index selector`: selects an indexed child of an array (from 0)                                                         |
 
 ## Examples
 
@@ -62,18 +120,18 @@ The examples are based on the simple CBOR value representing a bookstore (that a
 
 This table shows some CBORPath queries that might be applied to this example and their intended results.
 
-| JSONPath                        | CBORPath                                             | Intended result                                                 |
-|---------------------------------|------------------------------------------------------|-----------------------------------------------------------------|
-| `$.store.book[*].author`        | `["$", "store", "book", {"*": 1}, "author"]`         | the authors of all books in the store                           |
-| `$..author`                     | `["$", {"..": "author"}]`                            | all authors                                                     |
-| `$.store.*`                     | `["$", "store", {"*": 1}]`                           | all things in store, which are some books and a red bicycle     |
-| `$.store..price`                | `["$", "store", {"..": "price"}]`                    | the prices of everything in the store                           |
-| `$..book[2]`                    | `["$", {"..": "book"}, {"#": 2}]  `                  | the third book                                                  |
-| `$..book[-1]`                   | `["$", {"..": "book"}, {"#": -1}]`                   | the last book in order                                          |
-| `$..book[0,1]`<br>`$..book[:2]` | `["$", {"..": "book"}, [{"#": 0}, {"#": 1}]]`<br>`["$", {"..": "book"}, {":": [0, 2, 1]}]` | the first two books       |
-| `$..book[?(@.isbn)]`            | `["$", {"..": "book"}, {"?": ["@", "isbn"]}]`        | all books with an ISBN number                                   |
-| `$..book[?(@.price<10)]`        | `["$", {"..": "book"}, {"?": {"<": [["@", "price"], 10.0]}}]`  | all books cheaper than 10                             |
-| `$..*`                          | `["$", {"..": {"*": 1}}]`                            | all map item values and array elements contained in input value |
+| Syntax                                                                                      | Intended result                                                 |
+|---------------------------------------------------------------------------------------------|-----------------------------------------------------------------|
+|  `["$", "store", "book", {"*": 1}, "author"]`                                               | the authors of all books in the store                           |
+|  `["$", {"..": "author"}]`                                                                  | all authors                                                     |
+|  `["$", "store", {"*": 1}]`                                                                 | all things in store, which are some books<br> and a red bicycle |
+|  `["$", "store", {"..": "price"}]`                                                          | the prices of everything in the store                           |
+|  `["$", {"..": "book"}, {"#": 2}]  `                                                        | the third book                                                  |
+|  `["$", {"..": "book"}, {"#": -1}]`                                                         | the last book in order                                          |
+|  `["$", {"..": "book"}, [{"#": 0}, {"#": 1}]]`<br>or<br>`["$", {"..": "book"}, {":": [0, 2, 1]}]` | the first two books                                       |
+|  `["$", {"..": "book"}, {"?": ["@", "isbn"]}]`                                              | all books with an ISBN number                                   |
+|  `["$", {"..": "book"}, {"?": {"<": [["@", "price"], 10.0]}}]`                              | all books cheaper than 10                                       |
+|  `["$", {"..": {"*": 1}}]`                                                              | all map item values and array elements<br> contained in input value |
 
 # Library Usage
 
