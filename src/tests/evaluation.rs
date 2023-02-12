@@ -524,3 +524,415 @@ fn filter_root_current() -> Result<(), Error> {
 
     Ok(())
 }
+
+#[test]
+fn store() -> Result<(), Error> {
+    let value = diag_to_bytes(
+        r#"
+    { "store": {
+        "book": [
+          { "category": "reference",
+            "author": "Nigel Rees",
+            "title": "Sayings of the Century",
+            "price": 8.95
+          },
+          { "category": "fiction",
+            "author": "Evelyn Waugh",
+            "title": "Sword of Honour",
+            "price": 12.99
+          },
+          { "category": "fiction",
+            "author": "Herman Melville",
+            "title": "Moby Dick",
+            "isbn": "0-553-21311-3",
+            "price": 8.99
+          },
+          { "category": "fiction",
+            "author": "J. R. R. Tolkien",
+            "title": "The Lord of the Rings",
+            "isbn": "0-395-19395-8",
+            "price": 22.99
+          }
+        ],
+        "bicycle": {
+          "color": "red",
+          "price": 399
+        }
+      }
+    }"#,
+    );
+
+    // the authors of all books in the store
+    // ["$", "store", "book", {"*": 1}, "author"]
+    let cbor_path = CborPath::builder()
+        .key("store")
+        .key("book")
+        .wildcard()
+        .key("author")
+        .build();
+    let results = cbor_path.evaluate_from_bytes(&value)?;
+    assert_eq!(
+        diag_to_bytes(
+            r#"[
+                "Nigel Rees",
+                "Evelyn Waugh",
+                "Herman Melville",
+                "J. R. R. Tolkien"
+            ]"#
+        ),
+        results
+    );
+
+    // all authors
+    // ["$", {"..": "author"}]
+    let cbor_path = CborPath::builder()
+        .descendant(builder::segment().key("author"))
+        .build();
+    let results = cbor_path.evaluate_from_bytes(&value)?;
+    assert_eq!(
+        diag_to_bytes(
+            r#"[
+                "Nigel Rees",
+                "Evelyn Waugh",
+                "Herman Melville",
+                "J. R. R. Tolkien"
+            ]"#
+        ),
+        results
+    );
+
+    // all things in store, which are some books and a red bicycle
+    // ["$", "store", {"*": 1}]
+    let cbor_path = CborPath::builder().key("store").wildcard().build();
+    let results = cbor_path.evaluate_from_bytes(&value)?;
+    assert_eq!(
+        diag_to_bytes(
+            r#"[[
+                    { "category": "reference",
+                        "author": "Nigel Rees",
+                        "title": "Sayings of the Century",
+                        "price": 8.95
+                    },
+                    { "category": "fiction",
+                        "author": "Evelyn Waugh",
+                        "title": "Sword of Honour",
+                        "price": 12.99
+                    },
+                    { "category": "fiction",
+                        "author": "Herman Melville",
+                        "title": "Moby Dick",
+                        "isbn": "0-553-21311-3",
+                        "price": 8.99
+                    },
+                    { "category": "fiction",
+                        "author": "J. R. R. Tolkien",
+                        "title": "The Lord of the Rings",
+                        "isbn": "0-395-19395-8",
+                        "price": 22.99
+                    }
+                ],
+                {
+                    "color": "red",
+                    "price": 399
+                }]"#
+        ),
+        results
+    );
+
+    // the prices of everything in the store
+    // ["$", "store", {"..": "price"}]
+    let cbor_path = CborPath::builder()
+        .key("store")
+        .descendant(builder::segment().key("price"))
+        .build();
+    let results = cbor_path.evaluate_from_bytes(&value)?;
+    assert_eq!(
+        diag_to_bytes(
+            r#"[
+                399,
+                8.95,
+                12.99,
+                8.99,
+                22.99
+            ]"#
+        ),
+        results
+    );
+
+    // the third book
+    // ["$", {"..": "book"}, {"#": 2}]
+    let cbor_path = CborPath::builder()
+        .descendant(builder::segment().key("book"))
+        .index(2)
+        .build();
+    let results = cbor_path.evaluate_from_bytes(&value)?;
+    assert_eq!(
+        diag_to_bytes(
+            r#"[{
+                "category": "fiction",
+                "author": "Herman Melville",
+                "title": "Moby Dick",
+                "isbn": "0-553-21311-3",
+                "price": 8.99
+            }]"#
+        ),
+        results
+    );
+
+    // the last book in order
+    // ["$", {"..": "book"}, {"#": -1}]
+    let cbor_path = CborPath::builder()
+        .descendant(builder::segment().key("book"))
+        .index(-1)
+        .build();
+    let results = cbor_path.evaluate_from_bytes(&value)?;
+    assert_eq!(
+        diag_to_bytes(
+            r#"[{
+                "category": "fiction",
+                "author": "J. R. R. Tolkien",
+                "title": "The Lord of the Rings",
+                "isbn": "0-395-19395-8",
+                "price": 22.99
+            }]"#
+        ),
+        results
+    );
+
+    // the first two books
+    // ["$", {"..": "book"}, [{"#": 0}, {"#": 1}]]
+    let cbor_path = CborPath::builder()
+        .descendant(builder::segment().key("book"))
+        .child(builder::segment().index(0).index(1))
+        .build();
+    let results = cbor_path.evaluate_from_bytes(&value)?;
+    assert_eq!(
+        diag_to_bytes(
+            r#"[
+            {
+              "category": "reference",
+              "author": "Nigel Rees",
+              "title": "Sayings of the Century",
+              "price": 8.95
+            },
+            {
+              "category": "fiction",
+              "author": "Evelyn Waugh",
+              "title": "Sword of Honour",
+              "price": 12.99
+            }]"#
+        ),
+        results
+    );
+
+    // the first two books
+    // ["$", {"..": "book"}, {":": [0, 2, 1]}]
+    let cbor_path = CborPath::builder()
+        .descendant(builder::segment().key("book"))
+        .slice(0, 2, 1)
+        .build();
+    let results = cbor_path.evaluate_from_bytes(&value)?;
+    assert_eq!(
+        diag_to_bytes(
+            r#"[
+            {
+              "category": "reference",
+              "author": "Nigel Rees",
+              "title": "Sayings of the Century",
+              "price": 8.95
+            },
+            {
+              "category": "fiction",
+              "author": "Evelyn Waugh",
+              "title": "Sword of Honour",
+              "price": 12.99
+            }]"#
+        ),
+        results
+    );
+
+    // all books with an ISBN number
+    // ["$", {"..": "book"}, {"?": ["@", "isbn"]}]
+    let cbor_path = CborPath::builder()
+        .descendant(builder::segment().key("book"))
+        .filter(builder::rel_path().key("isbn"))
+        .build();
+    let results = cbor_path.evaluate_from_bytes(&value)?;
+    assert_eq!(
+        diag_to_bytes(
+            r#"[
+            {
+              "category": "fiction",
+              "author": "Herman Melville",
+              "title": "Moby Dick",
+              "isbn": "0-553-21311-3",
+              "price": 8.99
+            },
+            {
+              "category": "fiction",
+              "author": "J. R. R. Tolkien",
+              "title": "The Lord of the Rings",
+              "isbn": "0-395-19395-8",
+              "price": 22.99
+            }]"#
+        ),
+        results
+    );
+
+    // all books cheaper than 10
+    // ["$", {"..": "book"}, {"?": {"<": [["@", "price"], 10.0]}}]
+    let cbor_path = CborPath::builder()
+        .descendant(builder::segment().key("book"))
+        .filter(builder::lt(
+            builder::sing_rel_path().key("price"),
+            builder::val(10.),
+        ))
+        .build();
+    let results = cbor_path.evaluate_from_bytes(&value)?;
+    assert_eq!(
+        diag_to_bytes(
+            r#"[
+            {
+              "category": "reference",
+              "author": "Nigel Rees",
+              "title": "Sayings of the Century",
+              "price": 8.95
+            },
+            {
+              "category": "fiction",
+              "author": "Herman Melville",
+              "title": "Moby Dick",
+              "isbn": "0-553-21311-3",
+              "price": 8.99
+            }]"#
+        ),
+        results
+    );
+
+    // all map item values and array elements contained in input value
+    // ["$", {"..": {"*": 1}}]
+    let cbor_path = CborPath::builder()
+        .descendant(builder::segment().wildcard())
+        .build();
+    let results = cbor_path.evaluate_from_bytes(&value)?;
+    assert_eq!(
+        diag_to_bytes(
+            r#"[{
+              "book": [
+                {
+                  "category": "reference",
+                  "author": "Nigel Rees",
+                  "title": "Sayings of the Century",
+                  "price": 8.95
+                },
+                {
+                  "category": "fiction",
+                  "author": "Evelyn Waugh",
+                  "title": "Sword of Honour",
+                  "price": 12.99
+                },
+                {
+                  "category": "fiction",
+                  "author": "Herman Melville",
+                  "title": "Moby Dick",
+                  "isbn": "0-553-21311-3",
+                  "price": 8.99
+                },
+                {
+                  "category": "fiction",
+                  "author": "J. R. R. Tolkien",
+                  "title": "The Lord of the Rings",
+                  "isbn": "0-395-19395-8",
+                  "price": 22.99
+                }
+              ],
+              "bicycle": {
+                "color": "red",
+                "price": 399
+              }
+            },
+            [
+              {
+                "category": "reference",
+                "author": "Nigel Rees",
+                "title": "Sayings of the Century",
+                "price": 8.95
+              },
+              {
+                "category": "fiction",
+                "author": "Evelyn Waugh",
+                "title": "Sword of Honour",
+                "price": 12.99
+              },
+              {
+                "category": "fiction",
+                "author": "Herman Melville",
+                "title": "Moby Dick",
+                "isbn": "0-553-21311-3",
+                "price": 8.99
+              },
+              {
+                "category": "fiction",
+                "author": "J. R. R. Tolkien",
+                "title": "The Lord of the Rings",
+                "isbn": "0-395-19395-8",
+                "price": 22.99
+              }
+            ],
+            {
+              "color": "red",
+              "price": 399
+            },
+            {
+              "category": "reference",
+              "author": "Nigel Rees",
+              "title": "Sayings of the Century",
+              "price": 8.95
+            },
+            {
+              "category": "fiction",
+              "author": "Evelyn Waugh",
+              "title": "Sword of Honour",
+              "price": 12.99
+            },
+            {
+              "category": "fiction",
+              "author": "Herman Melville",
+              "title": "Moby Dick",
+              "isbn": "0-553-21311-3",
+              "price": 8.99
+            },
+            {
+              "category": "fiction",
+              "author": "J. R. R. Tolkien",
+              "title": "The Lord of the Rings",
+              "isbn": "0-395-19395-8",
+              "price": 22.99
+            },
+            "red",
+            399,
+            "reference",
+            "Nigel Rees",
+            "Sayings of the Century",
+            8.95,
+            "fiction",
+            "Evelyn Waugh",
+            "Sword of Honour",
+            12.99,
+            "fiction",
+            "Herman Melville",
+            "Moby Dick",
+            "0-553-21311-3",
+            8.99,
+            "fiction",
+            "J. R. R. Tolkien",
+            "The Lord of the Rings",
+            "0-395-19395-8",
+            22.99
+            ]"#
+        ),
+        results
+    );
+
+    Ok(())
+}
