@@ -6,16 +6,14 @@ use std::{
 /// All error kinds
 #[derive(Debug)]
 pub enum Error {
-    /// Raised if an error occurs while converting a [`Value`](https://docs.rs/ciborium/latest/ciborium/value/enum.Value.html) to a [`CborPath`](crate::CborPath)
+    /// Raised if an error occurs while converting a [`Cbor value`](https://docs.rs/cbor-data/latest/cbor_data/struct.Cbor.html) to a [`CborPath`](crate::CborPath)
     /// # See
     /// [`CborPath::from_value`](crate::CborPath::from_value)
     Conversion(String),
-    /// Raised if an error occurs while deserializing a [`CborPath`](crate::CborPath)
+    /// Raised if an error occurs while parsing an input value to evaluate
     /// # See
     /// [`CborPath::from_reader`](crate::CborPath::from_reader)
-    Deserialization(String),
-    /// Raised by external crates like [`ciborium`](https://docs.rs/ciborium)
-    External(String)
+    Parsing(String),
 }
 
 impl From<str::Utf8Error> for Error {
@@ -36,9 +34,9 @@ impl From<std::num::TryFromIntError> for Error {
     }
 }
 
-impl From<ciborium::value::Error> for Error {
-    fn from(e: ciborium::value::Error) -> Self {
-        Error::Conversion(e.to_string())
+impl From<cbor_data::ParseError> for Error {
+    fn from(e: cbor_data::ParseError) -> Self {
+        Error::Parsing(e.to_string())
     }
 }
 

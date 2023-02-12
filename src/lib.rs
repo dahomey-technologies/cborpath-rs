@@ -3,18 +3,18 @@
 cborpath is a CBORPath engine written in Rust.
 
 # CBORPath
-CBORPath is an adaptation of JSONPath to [CBOR](https://www.rfc-editor.org/rfc/rfc8949.html) 
+CBORPath is an adaptation of JSONPath to [CBOR](https://www.rfc-editor.org/rfc/rfc8949.html)
 based on the [JSONPath RFC Draft](https://www.ietf.org/archive/id/draft-ietf-jsonpath-base-09.html)
 
 ## Syntax summary
 ### Path
 A `path` expression is a `CBOR Array` which, when applied to a `CBOR` value, the
 *argument*, selects zero or more nodes of the argument and output these nodes as a nodelist.
- 
+
 A `path` always begins by an identifier
 * a root identifier (`$`) for absolute paths,
 * a current node identifier (`@`) for relative paths. relative path are always used in a filter context.
- 
+
 A `path` is then followed by one or more `segments`.
 
 | Syntax                                        | Description                                                                                                             |
@@ -240,7 +240,7 @@ assert_eq!(vec![
   }).unwrap()
 ], results);
 
-// the prices of everything in the store  
+// the prices of everything in the store
 // ["$", "store", {"..": "price"}]
 let cbor_path = CborPath::builder()
   .key("store")
@@ -263,7 +263,7 @@ let cbor_path = CborPath::builder()
   .build();
 let results = cbor_path.evaluate(&value);
 assert_eq!(vec![
-  &cbor!({ 
+  &cbor!({
     "category" => "fiction",
     "author" => "Herman Melville",
     "title" => "Moby Dick",
@@ -280,7 +280,7 @@ let cbor_path = CborPath::builder()
   .build();
 let results = cbor_path.evaluate(&value);
 assert_eq!(vec![
-  &cbor!({ 
+  &cbor!({
     "category" => "fiction",
     "author" => "J. R. R. Tolkien",
     "title" => "The Lord of the Rings",
@@ -505,9 +505,8 @@ assert_eq!(vec![
 
 pub mod builder;
 mod cbor_path;
-mod deserialization;
 mod error;
-mod value;
+mod conversion;
 
 pub use cbor_path::*;
 pub use error::*;

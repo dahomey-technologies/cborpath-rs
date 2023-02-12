@@ -14,10 +14,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ciborium = "0.2"
-ciborium-io = "0.2"
+cbor-data = "0.8"
 regex = "1.7"
-serde = "1.0"
 
 [dev-dependencies]
 cbor-diag = "0.1"

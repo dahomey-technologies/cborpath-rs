@@ -1,15 +1,11 @@
-use cbor_diag::{parse_diag, parse_bytes};
-use ciborium::{value::Value, de::from_reader};
+use cbor_data::CborOwned;
+use cbor_diag::parse_diag;
 
-pub fn diag_to_value(cbor_diag_str: &str) -> Value {
+pub fn diag_to_cbor(cbor_diag_str: &str) -> CborOwned {
     let buf = parse_diag(cbor_diag_str).unwrap().to_bytes();
-    from_reader(buf.as_slice()).unwrap()
+    CborOwned::canonical(&buf).unwrap()
 }
 
 pub fn diag_to_bytes(cbor_diag_str: &str) -> Vec<u8> {
     parse_diag(cbor_diag_str).unwrap().to_bytes()
-}
-
-pub fn bytes_to_diag(bytes: &[u8]) -> String {
-    parse_bytes(bytes).unwrap().to_diag()
 }
