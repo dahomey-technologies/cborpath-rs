@@ -12,7 +12,7 @@ pub enum Error {
     Conversion(String),
     /// Raised if an error occurs while parsing an input value to evaluate
     /// # See
-    /// [`CborPath::from_reader`](crate::CborPath::from_reader)
+    /// [`CborPath::from_bytes`](crate::CborPath::from_bytes)
     Parsing(String),
 }
 

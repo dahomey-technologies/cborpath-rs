@@ -753,4 +753,3 @@ impl IntoCborOwned for () {
         CborBuilder::new().write_null(None)
     }
 }
-

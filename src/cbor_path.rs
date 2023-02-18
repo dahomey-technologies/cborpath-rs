@@ -1,3 +1,5 @@
+#[cfg(test)]
+use crate::builder::IntoCborOwned;
 use crate::{
     builder::{self, PathBuilder},
     Error,
@@ -5,6 +7,43 @@ use crate::{
 use cbor_data::{Cbor, CborBuilder, CborOwned, ItemKind, Writer};
 use regex::Regex;
 use std::{borrow::Cow, vec};
+
+/// A path element
+///
+/// See [`CborPath::get_paths`](CborPath::get_paths)
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PathElement {
+    /// Index in a `CBOR Array`
+    Index(usize),
+    /// Key in a `CBOR Map`
+    Key(CborOwned),
+}
+
+impl PathElement {
+    #[cfg(test)]
+    pub(crate) fn index(index: usize) -> Self {
+        Self::Index(index)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn key<K: IntoCborOwned>(key: K) -> Self {
+        Self::Key(key.into())
+    }
+}
+
+fn append_index_to_path(path: &Vec<PathElement>, index: usize) -> Vec<PathElement> {
+    let mut new_path = Vec::with_capacity(path.len() + 1);
+    new_path.extend(path.iter().cloned());
+    new_path.push(PathElement::Index(index));
+    new_path
+}
+
+fn append_key_to_path(path: &Vec<PathElement>, key: &Cbor) -> Vec<PathElement> {
+    let mut new_path = Vec::with_capacity(path.len() + 1);
+    new_path.extend(path.iter().cloned());
+    new_path.push(PathElement::Key(key.to_owned()));
+    new_path
+}
 
 /// Represents a CBORPath expression
 ///
@@ -31,8 +70,7 @@ impl CborPath {
     /// # Return
     /// A new `CborPath` instance or an error if the provided buffer is neither a valid `CBOR` buffer nor a valid `CBORPath` expression.
     #[inline]
-    pub fn from_bytes(cbor: &[u8]) -> Result<Self, Error>
-    {
+    pub fn from_bytes(cbor: &[u8]) -> Result<Self, Error> {
         let cbor = Cbor::checked(cbor)?;
         cbor.try_into()
     }
@@ -47,15 +85,15 @@ impl CborPath {
 
     /// Applies the CBORPath expression to the input `CBOR` document
     /// # Return
-    /// A binarized `CBOR` document.
+    /// A binarized `CBOR` document
     ///
     /// The returned value is always in a the form of a `CBOR Array` which contains all the results `CBOR` nodes
     ///
-    /// The evaluation in itself does not raise any error: 
-    /// if the CBORPath expression does not match the input value, an empty `CBOR Array` will be returned
+    /// The evaluation in itself does not raise any error:
+    /// if the CBORPath expression does not match the input value, an empty `CBOR Array` will be returned.
     #[inline]
-    pub fn evaluate<'a>(&self, cbor: &'a Cbor) -> Vec<&'a Cbor> {
-        self.0.evaluate(cbor)
+    pub fn read<'a>(&self, cbor: &'a Cbor) -> Vec<&'a Cbor> {
+        self.0.read(cbor)
     }
 
     /// Applies the CBORPath expression to the input `CBOR` document
@@ -65,13 +103,13 @@ impl CborPath {
     /// The returned value is always in a the form of a `CBOR Array` which contains all the results `CBOR` nodes
     ///
     /// The evaluation in itself does not raise any error:
-    /// if the CBORPath expression does not match the input value, an empty `CBOR Array` will be returned
+    /// if the CBORPath expression does not match the input value, an empty `CBOR Array` will be returned.
     ///
     /// Errors can only occur if the input buffer is not a valid `CBOR` document.
     #[inline]
-    pub fn evaluate_from_bytes(&self, cbor: &[u8]) -> Result<Vec<u8>, Error> {
+    pub fn read_from_bytes(&self, cbor: &[u8]) -> Result<Vec<u8>, Error> {
         let cbor = Cbor::checked(cbor)?;
-        let result = self.evaluate(cbor);
+        let result = self.read(cbor);
         let ouput = CborBuilder::new().write_array(None, |builder| {
             for cbor in result {
                 builder.write_item(cbor);
@@ -79,6 +117,31 @@ impl CborPath {
         });
 
         Ok(ouput.into_vec())
+    }
+
+    /// Applies the CBORPath expression to the input `CBOR` document
+    /// # Return
+    /// A path list to matched nodes.
+    ///
+    /// The evaluation in itself does not raise any error:
+    /// if the CBORPath expression does not match the input value, an empty list will be returned.
+    #[inline]
+    pub fn get_paths(&self, cbor: &Cbor) -> Vec<Vec<PathElement>> {
+        self.0.get_paths(cbor)
+    }
+
+    /// Applies the CBORPath expression to the input `CBOR` document
+    /// # Return
+    /// A path list to matched nodes.
+    ///
+    /// The evaluation in itself does not raise any error:
+    /// if the CBORPath expression does not match the input value, an empty list will be returned.
+    ///
+    /// Errors can only occur if the input buffer is not a valid `CBOR` document.
+    #[inline]
+    pub fn get_paths_from_bytes(&self, cbor: &[u8]) -> Result<Vec<Vec<PathElement>>, Error> {
+        let cbor = Cbor::checked(cbor)?;
+        Ok(self.get_paths(cbor))
     }
 }
 
@@ -91,21 +154,40 @@ impl AbsolutePath {
         Self(segments)
     }
 
-    pub fn evaluate<'a>(&self, root: &'a Cbor) -> Vec<&'a Cbor> {
+    pub fn read<'a>(&self, root: &'a Cbor) -> Vec<&'a Cbor> {
         let mut current_values: Vec<&'a Cbor>;
         let mut iter = self.0.iter();
 
         if let Some(first) = iter.next() {
-            current_values = first.evaluate(root, &[root]);
+            current_values = first.read(root, &[root]);
         } else {
             return vec![root];
         }
 
         for segment in iter {
-            current_values = segment.evaluate(root, &current_values);
+            current_values = segment.read(root, &current_values);
         }
 
         current_values
+    }
+
+    pub fn get_paths<'a>(&self, root: &'a Cbor) -> Vec<Vec<PathElement>> {
+        let mut current_values: Vec<&'a Cbor>;
+        let mut current_path: Vec<Vec<PathElement>>;
+        let mut iter = self.0.iter();
+
+        if let Some(first) = iter.next() {
+            (current_values, current_path) = first.get_paths(root, &[root], &[Vec::new()]);
+        } else {
+            return Vec::new();
+        }
+
+        for segment in iter {
+            (current_values, current_path) =
+                segment.get_paths(root, &current_values, &current_path);
+        }
+
+        current_path
     }
 }
 
@@ -122,13 +204,13 @@ impl RelativePath {
         let mut iter = self.0.iter();
 
         if let Some(first) = iter.next() {
-            current_values = first.evaluate(root, &[current]);
+            current_values = first.read(root, &[current]);
         } else {
             return vec![current];
         }
 
         for segment in iter {
-            current_values = segment.evaluate(root, &current_values);
+            current_values = segment.read(root, &current_values);
         }
 
         current_values
@@ -147,7 +229,7 @@ impl Path {
     #[inline]
     pub fn evaluate<'a>(&self, root: &'a Cbor, current: &'a Cbor) -> Vec<&'a Cbor> {
         match self {
-            Path::Abs(path) => path.evaluate(root),
+            Path::Abs(path) => path.read(root),
             Path::Rel(path) => path.evaluate(root, current),
         }
     }
@@ -160,11 +242,11 @@ pub(crate) enum Segment {
 }
 
 impl Segment {
-    fn evaluate<'a>(&self, root: &'a Cbor, current_values: &[&'a Cbor]) -> Vec<&'a Cbor> {
+    fn read<'a>(&self, root: &'a Cbor, current_values: &[&'a Cbor]) -> Vec<&'a Cbor> {
         match self {
             Segment::Child(selectors) => current_values
                 .iter()
-                .flat_map(|current| selectors.iter().flat_map(|s| s.evaluate(root, current)))
+                .flat_map(|current| selectors.iter().flat_map(|s| s.read(root, current)))
                 .collect(),
 
             Segment::Descendant(selectors) => {
@@ -176,8 +258,45 @@ impl Segment {
 
                 descendants
                     .into_iter()
-                    .flat_map(|current| selectors.iter().flat_map(|s| s.evaluate(root, current)))
+                    .flat_map(|current| selectors.iter().flat_map(|s| s.read(root, current)))
                     .collect()
+            }
+        }
+    }
+
+    fn get_paths<'a>(
+        &self,
+        root: &'a Cbor,
+        current_values: &[&'a Cbor],
+        current_paths: &[Vec<PathElement>],
+    ) -> (Vec<&'a Cbor>, Vec<Vec<PathElement>>) {
+        match self {
+            Segment::Child(selectors) => current_values
+                .iter()
+                .zip(current_paths)
+                .flat_map(|(c, p)| {
+                    selectors.iter().flat_map(|s| {
+                        let (values, paths) = s.get_paths(root, c, p);
+                        values.into_iter().zip(paths)
+                    })
+                })
+                .unzip(),
+            Segment::Descendant(selectors) => {
+                let mut descendants = Vec::new();
+                for (value, path) in current_values.iter().zip(current_paths) {
+                    descendants.push((*value, path.clone()));
+                    Self::fetch_descendants_with_paths(&mut descendants, value, path);
+                }
+
+                descendants
+                    .iter()
+                    .flat_map(|(c, p)| {
+                        selectors.iter().flat_map(|s| {
+                            let (values, paths) = s.get_paths(root, c, p);
+                            values.into_iter().zip(paths)
+                        })
+                    })
+                    .unzip()
             }
         }
     }
@@ -194,6 +313,39 @@ impl Segment {
                 descendants.extend(d.map(|(_k, v)| v));
                 for value in d.map(|(_k, v)| v) {
                     Self::fetch_descendants(descendants, value);
+                }
+            }
+            _ => (),
+        }
+    }
+
+    fn fetch_descendants_with_paths<'a>(
+        descendants: &mut Vec<(&'a Cbor, Vec<PathElement>)>,
+        value: &'a Cbor,
+        path: &Vec<PathElement>,
+    ) {
+        match value.kind() {
+            ItemKind::Array(a) => {
+                descendants.extend(
+                    a.enumerate()
+                        .map(|(i, v)| (v, append_index_to_path(path, i))),
+                );
+                for (i, v) in a.enumerate() {
+                    Self::fetch_descendants_with_paths(
+                        descendants,
+                        v,
+                        &append_index_to_path(path, i),
+                    );
+                }
+            }
+            ItemKind::Dict(d) => {
+                descendants.extend(d.map(|(k, v)| (v, append_key_to_path(path, k))));
+                for (k, v) in d {
+                    Self::fetch_descendants_with_paths(
+                        descendants,
+                        v,
+                        &append_key_to_path(path, k),
+                    );
                 }
             }
             _ => (),
@@ -216,13 +368,28 @@ pub(crate) enum Selector {
 }
 
 impl Selector {
-    fn evaluate<'a>(&self, root: &'a Cbor, current: &'a Cbor) -> Vec<&'a Cbor> {
+    fn read<'a>(&self, root: &'a Cbor, current: &'a Cbor) -> Vec<&'a Cbor> {
         match self {
-            Selector::Key(selector) => selector.evaluate(current),
-            Selector::Wildcard => WildcardSelector.evaluate(current),
-            Selector::Index(selector) => selector.evaluate(current),
-            Selector::Slice(selector) => selector.evaluate(current),
-            Selector::Filter(filter) => filter.evaluate(root, current),
+            Selector::Key(selector) => selector.read(current),
+            Selector::Wildcard => WildcardSelector.read(current),
+            Selector::Index(selector) => selector.read(current),
+            Selector::Slice(selector) => selector.read(current),
+            Selector::Filter(filter) => filter.read(root, current),
+        }
+    }
+
+    fn get_paths<'a>(
+        &self,
+        root: &'a Cbor,
+        current: &'a Cbor,
+        current_path: &Vec<PathElement>,
+    ) -> (Vec<&'a Cbor>, Vec<Vec<PathElement>>) {
+        match self {
+            Selector::Key(selector) => selector.get_path(current, current_path),
+            Selector::Wildcard => WildcardSelector.get_paths(current, current_path),
+            Selector::Index(selector) => selector.get_paths(current, current_path),
+            Selector::Slice(selector) => selector.get_paths(current, current_path),
+            Selector::Filter(filter) => filter.get_paths(root, current, current_path),
         }
     }
 }
@@ -237,25 +404,31 @@ impl KeySelector {
     }
 
     #[inline]
-    fn evaluate<'a>(&self, value: &'a Cbor) -> Vec<&'a Cbor> {
-        self.evaluate_single(value)
+    fn read<'a>(&self, value: &'a Cbor) -> Vec<&'a Cbor> {
+        self.read_single(value)
             .map(|v| vec![v])
             .unwrap_or_else(Vec::new)
     }
 
     #[inline]
-    fn evaluate_single<'a>(&self, value: &'a Cbor) -> Option<&'a Cbor> {
+    fn read_single<'a>(&self, value: &'a Cbor) -> Option<&'a Cbor> {
         let Self(key) = &self;
         match value.kind() {
-            ItemKind::Dict(mut d) => d.find_map(|(k, v)| {
-                if value_equals(k, key) {
-                    Some(v)
-                } else {
-                    None
-                }
-            }),
+            ItemKind::Dict(mut d) => {
+                d.find_map(|(k, v)| if value_equals(k, key) { Some(v) } else { None })
+            }
             _ => None,
         }
+    }
+
+    fn get_path<'a>(
+        &self,
+        value: &'a Cbor,
+        path: &Vec<PathElement>,
+    ) -> (Vec<&'a Cbor>, Vec<Vec<PathElement>>) {
+        self.read_single(value)
+            .map(|v| (vec![v], vec![append_key_to_path(path, &self.0)]))
+            .unwrap_or_else(|| (Vec::new(), Vec::new()))
     }
 }
 
@@ -264,11 +437,26 @@ pub(crate) struct WildcardSelector;
 
 impl WildcardSelector {
     #[inline]
-    fn evaluate<'a>(&self, value: &'a Cbor) -> Vec<&'a Cbor> {
+    fn read<'a>(&self, value: &'a Cbor) -> Vec<&'a Cbor> {
         match value.kind() {
             ItemKind::Dict(d) => d.map(|(_, v)| v).collect(),
             ItemKind::Array(array) => array.collect(),
-            _ => vec![],
+            _ => Vec::new(),
+        }
+    }
+
+    fn get_paths<'a>(
+        &self,
+        value: &'a Cbor,
+        path: &Vec<PathElement>,
+    ) -> (Vec<&'a Cbor>, Vec<Vec<PathElement>>) {
+        match value.kind() {
+            ItemKind::Dict(d) => d.map(|(k, v)| (v, append_key_to_path(path, k))).unzip(),
+            ItemKind::Array(a) => a
+                .enumerate()
+                .map(|(i, v)| (v, append_index_to_path(path, i)))
+                .unzip(),
+            _ => (Vec::new(), Vec::new()),
         }
     }
 }
@@ -283,22 +471,40 @@ impl IndexSelector {
     }
 
     #[inline]
-    fn evaluate<'a>(&self, value: &'a Cbor) -> Vec<&'a Cbor> {
-        self.evaluate_single(value)
+    fn read<'a>(&self, value: &'a Cbor) -> Vec<&'a Cbor> {
+        self.read_single(value)
             .map(|v| vec![v])
             .unwrap_or_else(Vec::new)
     }
 
     #[inline]
-    fn evaluate_single<'a>(&self, value: &'a Cbor) -> Option<&'a Cbor> {
+    fn read_single<'a>(&self, value: &'a Cbor) -> Option<&'a Cbor> {
         let Self(index) = &self;
         match value.kind() {
             ItemKind::Array(mut array) => {
                 let len = array.size().unwrap_or(array.count() as u64) as usize;
                 let index = normalize_index(*index, len) as usize;
-                array.nth(index as usize)
+                array.nth(index)
             }
             _ => None,
+        }
+    }
+
+    fn get_paths<'a>(
+        &self,
+        value: &'a Cbor,
+        path: &Vec<PathElement>,
+    ) -> (Vec<&'a Cbor>, Vec<Vec<PathElement>>) {
+        match value.kind() {
+            ItemKind::Array(mut array) => {
+                let len = array.size().unwrap_or(array.count() as u64) as usize;
+                let index = normalize_index(self.0, len) as usize;
+                array
+                    .nth(index)
+                    .map(|v| (vec![v], vec![append_index_to_path(path, index)]))
+                    .unwrap_or_else(|| (Vec::new(), Vec::new()))
+            }
+            _ => (Vec::new(), Vec::new()),
         }
     }
 }
@@ -312,37 +518,84 @@ impl SliceSelector {
         Self(start, end, step)
     }
 
-    fn evaluate<'a>(&self, value: &'a Cbor) -> Vec<&'a Cbor> {
+    fn read<'a>(&self, value: &'a Cbor) -> Vec<&'a Cbor> {
         let SliceSelector(start, end, step) = &self;
         match value.kind() {
             ItemKind::Array(array) => {
                 let len = array.size().unwrap_or(array.count() as u64) as usize;
                 let start = normalize_index(*start, len);
                 let end = normalize_index(*end, len);
+                let step = *step;
 
-                if *step > 0 {
+                if step > 0 {
                     let start = usize::min(start as usize, len);
                     let end = usize::min(end as usize, len);
                     array
                         .skip(start)
                         .take(end - start)
-                        .step_by(*step as usize)
+                        .step_by(step as usize)
                         .collect()
                 } else {
-                    let start = len - 1 - usize::min(start as usize, len);
-                    let end =
-                        (len as isize - 1 - isize::min(isize::max(end, -1), len as isize)) as usize;
-                    array
-                        .collect::<Vec<_>>()
-                        .into_iter()
-                        .rev()
-                        .skip(start)
-                        .take(end - start)
+                    let actual_start = usize::min(
+                        (end + 1 + (start % -step) - ((end + 1) % step)) as usize,
+                        len,
+                    );
+                    let actual_end = usize::min((start + 1) as usize, len);
+                    let mut result: Vec<&'a Cbor> = array
+                        .skip(actual_start)
+                        .take(actual_end - actual_start)
                         .step_by(-step as usize)
-                        .collect()
+                        .collect();
+                    result.reverse();
+                    result
                 }
             }
-            _ => vec![],
+            _ => Vec::new(),
+        }
+    }
+
+    fn get_paths<'a>(
+        &self,
+        value: &'a Cbor,
+        path: &Vec<PathElement>,
+    ) -> (Vec<&'a Cbor>, Vec<Vec<PathElement>>) {
+        let SliceSelector(start, end, step) = &self;
+        match value.kind() {
+            ItemKind::Array(array) => {
+                let len = array.size().unwrap_or(array.count() as u64) as usize;
+                let start = normalize_index(*start, len);
+                let end = normalize_index(*end, len);
+                let step = *step;
+
+                if step > 0 {
+                    let start = usize::min(start as usize, len);
+                    let end = usize::min(end as usize, len);
+                    array
+                        .enumerate()
+                        .skip(start)
+                        .take(end - start)
+                        .step_by(step as usize)
+                        .map(|(i, v)| (v, append_index_to_path(path, i)))
+                        .unzip()
+                } else {
+                    let actual_start = usize::min(
+                        (end + 1 + (start % -step) - ((end + 1) % step)) as usize,
+                        len,
+                    );
+                    let actual_end = usize::min((start + 1) as usize, len);
+                    let (mut values, mut paths): (Vec<&'a Cbor>, Vec<Vec<PathElement>>) = array
+                        .enumerate()
+                        .skip(actual_start)
+                        .take(actual_end - actual_start)
+                        .step_by(-step as usize)
+                        .map(|(i, v)| (v, append_index_to_path(path, i)))
+                        .unzip();
+                    values.reverse();
+                    paths.reverse();
+                    (values, paths)
+                }
+            }
+            _ => (Vec::new(), Vec::new()),
         }
     }
 }
@@ -357,20 +610,51 @@ impl FilterSelector {
     }
 
     #[inline]
-    fn evaluate<'a>(&self, root: &'a Cbor, current: &'a Cbor) -> Vec<&'a Cbor> {
+    fn read<'a>(&self, root: &'a Cbor, current: &'a Cbor) -> Vec<&'a Cbor> {
         let Self(boolean_expr) = &self;
         match current.kind() {
-            ItemKind::Array(a) => a.filter(|v| boolean_expr.evaluate(root, v)).collect(),
+            ItemKind::Array(a) => a.filter(|v| boolean_expr.read(root, v)).collect(),
             ItemKind::Dict(d) => d
                 .filter_map(|(_, v)| {
-                    if boolean_expr.evaluate(root, v) {
+                    if boolean_expr.read(root, v) {
                         Some(v)
                     } else {
                         None
                     }
                 })
                 .collect(),
-            _ => vec![],
+            _ => Vec::new(),
+        }
+    }
+
+    fn get_paths<'a>(
+        &self,
+        root: &'a Cbor,
+        current: &'a Cbor,
+        path: &Vec<PathElement>,
+    ) -> (Vec<&'a Cbor>, Vec<Vec<PathElement>>) {
+        let Self(boolean_expr) = &self;
+        match current.kind() {
+            ItemKind::Array(a) => a
+                .enumerate()
+                .filter_map(|(i, v)| {
+                    if boolean_expr.read(root, v) {
+                        Some((v, append_index_to_path(path, i)))
+                    } else {
+                        None
+                    }
+                })
+                .unzip(),
+            ItemKind::Dict(d) => d
+                .filter_map(|(k, v)| {
+                    if boolean_expr.read(root, v) {
+                        Some((v, append_key_to_path(path, k)))
+                    } else {
+                        None
+                    }
+                })
+                .unzip(),
+            _ => (Vec::new(), Vec::new()),
         }
     }
 }
@@ -388,14 +672,14 @@ pub(crate) enum BooleanExpr {
 
 impl BooleanExpr {
     #[inline]
-    pub fn evaluate(&self, root: &Cbor, current: &Cbor) -> bool {
+    pub fn read(&self, root: &Cbor, current: &Cbor) -> bool {
         match self {
-            BooleanExpr::Or(l, r) => l.evaluate(root, current) || r.evaluate(root, current),
-            BooleanExpr::And(l, r) => l.evaluate(root, current) && r.evaluate(root, current),
-            BooleanExpr::Not(e) => !e.evaluate(root, current),
-            BooleanExpr::Comparison(c) => c.evaluate(root, current),
+            BooleanExpr::Or(l, r) => l.read(root, current) || r.read(root, current),
+            BooleanExpr::And(l, r) => l.read(root, current) && r.read(root, current),
+            BooleanExpr::Not(e) => !e.read(root, current),
+            BooleanExpr::Comparison(c) => c.read(root, current),
             BooleanExpr::Path(p) => !p.evaluate(root, current).is_empty(),
-            BooleanExpr::Function(f) => f.evaluate_as_boolean_expr(root, current),
+            BooleanExpr::Function(f) => f.read_as_boolean_expr(root, current),
         }
     }
 }
@@ -409,7 +693,7 @@ impl ComparisonExpr {
         Self(left, operator, right)
     }
 
-    pub fn evaluate(&self, root: &Cbor, current: &Cbor) -> bool {
+    pub fn read(&self, root: &Cbor, current: &Cbor) -> bool {
         let ComparisonExpr(left, op, right) = &self;
         match op {
             ComparisonOperator::Eq => left.equals(right, root, current),
@@ -436,8 +720,8 @@ pub(crate) enum Comparable {
 /// cf. https://www.ietf.org/archive/id/draft-ietf-jsonpath-base-09.html#name-filter-selector
 impl Comparable {
     fn equals(&self, other: &Self, root: &Cbor, current: &Cbor) -> bool {
-        let v1 = self.evaluate(root, current);
-        let v2 = other.evaluate(root, current);
+        let v1 = self.read(root, current);
+        let v2 = other.read(root, current);
 
         match (&v1, &v2) {
             (None, None) => true,
@@ -447,16 +731,13 @@ impl Comparable {
     }
 
     fn lesser_than(&self, other: &Self, root: &Cbor, current: &Cbor) -> bool {
-        let v1 = self.evaluate(root, current);
-        let v2 = other.evaluate(root, current);
+        let v1 = self.read(root, current);
+        let v2 = other.read(root, current);
 
         let v1 = v1.as_ref().map(|v| v.as_ref());
         let v2 = v2.as_ref().map(|v| v.as_ref());
 
-        match (
-            v1.map(|v| v.kind()),
-            v2.map(|v| v.kind()),
-        ) {
+        match (v1.map(|v| v.kind()), v2.map(|v| v.kind())) {
             (Some(ItemKind::Pos(v1)), Some(ItemKind::Pos(v2))) => v1 < v2,
             (Some(ItemKind::Neg(v1)), Some(ItemKind::Neg(v2))) => v1 < v2,
             (Some(ItemKind::Float(v1)), Some(ItemKind::Float(v2))) => v1 < v2,
@@ -466,13 +747,13 @@ impl Comparable {
         }
     }
 
-    fn evaluate<'a>(&'a self, root: &'a Cbor, current: &'a Cbor) -> Option<Cow<'a, Cbor>> {
+    fn read<'a>(&'a self, root: &'a Cbor, current: &'a Cbor) -> Option<Cow<'a, Cbor>> {
         match self {
             Comparable::Value(value) => Some(Cow::Borrowed(value)),
-            Comparable::SingularPath(path) => path.evaluate(root, current),
-            Comparable::Function(function) => function
-                .evaluate_as_comparable(root, current)
-                .map(Cow::Owned),
+            Comparable::SingularPath(path) => path.read(root, current),
+            Comparable::Function(function) => {
+                function.read_as_comparable(root, current).map(Cow::Owned)
+            }
         }
     }
 }
@@ -528,20 +809,17 @@ pub(crate) enum SingularPath {
 
 impl SingularPath {
     #[inline]
-    pub fn evaluate<'a>(&self, root: &'a Cbor, current: &'a Cbor) -> Option<Cow<'a, Cbor>> {
+    pub fn read<'a>(&self, root: &'a Cbor, current: &'a Cbor) -> Option<Cow<'a, Cbor>> {
         match self {
-            SingularPath::Abs(segments) => Self::evaluate_impl(segments, root),
-            SingularPath::Rel(segments) => Self::evaluate_impl(segments, current),
+            SingularPath::Abs(segments) => Self::read_impl(segments, root),
+            SingularPath::Rel(segments) => Self::read_impl(segments, current),
         }
     }
 
-    fn evaluate_impl<'a>(
-        segments: &Vec<SingularSegment>,
-        value: &'a Cbor,
-    ) -> Option<Cow<'a, Cbor>> {
+    fn read_impl<'a>(segments: &Vec<SingularSegment>, value: &'a Cbor) -> Option<Cow<'a, Cbor>> {
         let mut current_value = value;
         for segment in segments {
-            match segment.evaluate(current_value) {
+            match segment.read(current_value) {
                 Some(value) => current_value = value,
                 None => return None,
             }
@@ -558,10 +836,10 @@ pub(crate) enum SingularSegment {
 
 impl SingularSegment {
     #[inline]
-    fn evaluate<'a>(&self, value: &'a Cbor) -> Option<&'a Cbor> {
+    fn read<'a>(&self, value: &'a Cbor) -> Option<&'a Cbor> {
         match self {
-            SingularSegment::Key(selector) => selector.evaluate_single(value),
-            SingularSegment::Index(selector) => selector.evaluate_single(value),
+            SingularSegment::Key(selector) => selector.read_single(value),
+            SingularSegment::Index(selector) => selector.read_single(value),
         }
     }
 }
@@ -585,10 +863,10 @@ impl PartialEq for Function {
 }
 
 impl Function {
-    fn evaluate_as_boolean_expr(&self, root: &Cbor, current: &Cbor) -> bool {
+    fn read_as_boolean_expr(&self, root: &Cbor, current: &Cbor) -> bool {
         match self {
             Function::Regex(comparable, regex) => {
-                let value = comparable.evaluate(root, current);
+                let value = comparable.read(root, current);
                 let value = value.as_ref().map(|v| v.as_ref());
                 match value.map(|v| v.kind()) {
                     Some(ItemKind::Str(str)) => match str.as_str() {
@@ -602,10 +880,10 @@ impl Function {
         }
     }
 
-    fn evaluate_as_comparable(&self, root: &Cbor, current: &Cbor) -> Option<CborOwned> {
+    fn read_as_comparable(&self, root: &Cbor, current: &Cbor) -> Option<CborOwned> {
         match self {
             Function::Length(comparable) => {
-                let value = comparable.evaluate(root, current);
+                let value = comparable.read(root, current);
                 let value = value.as_ref().map(|v| v.as_ref().kind());
                 match value {
                     Some(ItemKind::Array(a)) => {
