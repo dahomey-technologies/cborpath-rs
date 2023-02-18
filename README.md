@@ -193,7 +193,7 @@ fn main() -> Result<(), Error> {
       .wildcard()
       .key("author")
       .build();
-  let results = cbor_path.evaluate_from_bytes(&value)?;
+  let results = cbor_path.read_from_bytes(&value)?;
   assert_eq!(
       diag_to_bytes(
           r#"[
@@ -211,7 +211,7 @@ fn main() -> Result<(), Error> {
   let cbor_path = CborPath::builder()
       .descendant(builder::segment().key("author"))
       .build();
-  let results = cbor_path.evaluate_from_bytes(&value)?;
+  let results = cbor_path.read_from_bytes(&value)?;
   assert_eq!(
       diag_to_bytes(
           r#"[
@@ -227,7 +227,7 @@ fn main() -> Result<(), Error> {
   // all things in store, which are some books and a red bicycle
   // ["$", "store", {"*": 1}]
   let cbor_path = CborPath::builder().key("store").wildcard().build();
-  let results = cbor_path.evaluate_from_bytes(&value)?;
+  let results = cbor_path.read_from_bytes(&value)?;
   assert_eq!(
       diag_to_bytes(
           r#"[[
@@ -268,7 +268,7 @@ fn main() -> Result<(), Error> {
       .key("store")
       .descendant(builder::segment().key("price"))
       .build();
-  let results = cbor_path.evaluate_from_bytes(&value)?;
+  let results = cbor_path.read_from_bytes(&value)?;
   assert_eq!(
       diag_to_bytes(
           r#"[
@@ -288,7 +288,7 @@ fn main() -> Result<(), Error> {
       .descendant(builder::segment().key("book"))
       .index(2)
       .build();
-  let results = cbor_path.evaluate_from_bytes(&value)?;
+  let results = cbor_path.read_from_bytes(&value)?;
   assert_eq!(
       diag_to_bytes(
           r#"[{
@@ -308,7 +308,7 @@ fn main() -> Result<(), Error> {
       .descendant(builder::segment().key("book"))
       .index(-1)
       .build();
-  let results = cbor_path.evaluate_from_bytes(&value)?;
+  let results = cbor_path.read_from_bytes(&value)?;
   assert_eq!(
       diag_to_bytes(
           r#"[{
@@ -328,7 +328,7 @@ fn main() -> Result<(), Error> {
       .descendant(builder::segment().key("book"))
       .child(builder::segment().index(0).index(1))
       .build();
-  let results = cbor_path.evaluate_from_bytes(&value)?;
+  let results = cbor_path.read_from_bytes(&value)?;
   assert_eq!(
       diag_to_bytes(
           r#"[
@@ -354,7 +354,7 @@ fn main() -> Result<(), Error> {
       .descendant(builder::segment().key("book"))
       .slice(0, 2, 1)
       .build();
-  let results = cbor_path.evaluate_from_bytes(&value)?;
+  let results = cbor_path.read_from_bytes(&value)?;
   assert_eq!(
       diag_to_bytes(
           r#"[
@@ -380,7 +380,7 @@ fn main() -> Result<(), Error> {
       .descendant(builder::segment().key("book"))
       .filter(builder::rel_path().key("isbn"))
       .build();
-  let results = cbor_path.evaluate_from_bytes(&value)?;
+  let results = cbor_path.read_from_bytes(&value)?;
   assert_eq!(
       diag_to_bytes(
           r#"[
@@ -411,7 +411,7 @@ fn main() -> Result<(), Error> {
           builder::val(10.),
       ))
       .build();
-  let results = cbor_path.evaluate_from_bytes(&value)?;
+  let results = cbor_path.read_from_bytes(&value)?;
   assert_eq!(
       diag_to_bytes(
           r#"[
@@ -437,7 +437,7 @@ fn main() -> Result<(), Error> {
   let cbor_path = CborPath::builder()
       .descendant(builder::segment().wildcard())
       .build();
-  let results = cbor_path.evaluate_from_bytes(&value)?;
+  let results = cbor_path.read_from_bytes(&value)?;
   assert_eq!(
       diag_to_bytes(
           r#"[{
