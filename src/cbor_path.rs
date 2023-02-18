@@ -21,7 +21,7 @@ pub enum PathElement {
 pub struct Path(Vec<PathElement>);
 
 impl Path {
-    pub fn append_index(&self, index: usize) -> Self {
+    pub fn append_idx(&self, index: usize) -> Self {
         let mut path = Vec::with_capacity(self.0.len() + 1);
         path.extend(self.0.iter().cloned());
         path.push(PathElement::Index(index));
@@ -338,9 +338,9 @@ impl Segment {
     ) {
         match value.kind() {
             ItemKind::Array(a) => {
-                descendants.extend(a.enumerate().map(|(i, v)| (v, path.append_index(i))));
+                descendants.extend(a.enumerate().map(|(i, v)| (v, path.append_idx(i))));
                 for (i, v) in a.enumerate() {
-                    Self::fetch_descendants_with_paths(descendants, v, &path.append_index(i));
+                    Self::fetch_descendants_with_paths(descendants, v, &path.append_idx(i));
                 }
             }
             ItemKind::Dict(d) => {
@@ -447,7 +447,7 @@ impl WildcardSelector {
             ItemKind::Dict(d) => d.map(|(k, v)| (v, path.append_key(k))).unzip(),
             ItemKind::Array(a) => a
                 .enumerate()
-                .map(|(i, v)| (v, path.append_index(i)))
+                .map(|(i, v)| (v, path.append_idx(i)))
                 .unzip(),
             _ => (Vec::new(), Vec::new()),
         }
@@ -490,7 +490,7 @@ impl IndexSelector {
                 let index = normalize_index(self.0, len) as usize;
                 array
                     .nth(index)
-                    .map(|v| (vec![v], vec![path.append_index(index)]))
+                    .map(|v| (vec![v], vec![path.append_idx(index)]))
                     .unwrap_or_else(|| (Vec::new(), Vec::new()))
             }
             _ => (Vec::new(), Vec::new()),
@@ -560,7 +560,7 @@ impl SliceSelector {
                         .skip(start)
                         .take(end - start)
                         .step_by(step as usize)
-                        .map(|(i, v)| (v, path.append_index(i)))
+                        .map(|(i, v)| (v, path.append_idx(i)))
                         .unzip()
                 } else {
                     let actual_start = usize::min(
@@ -573,7 +573,7 @@ impl SliceSelector {
                         .skip(actual_start)
                         .take(actual_end - actual_start)
                         .step_by(-step as usize)
-                        .map(|(i, v)| (v, path.append_index(i)))
+                        .map(|(i, v)| (v, path.append_idx(i)))
                         .unzip();
                     values.reverse();
                     paths.reverse();
@@ -624,7 +624,7 @@ impl FilterSelector {
                 .enumerate()
                 .filter_map(|(i, v)| {
                     if boolean_expr.read(root, v) {
-                        Some((v, path.append_index(i)))
+                        Some((v, path.append_idx(i)))
                     } else {
                         None
                     }
