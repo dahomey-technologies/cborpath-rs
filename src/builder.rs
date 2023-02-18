@@ -3,7 +3,7 @@ Fluent API to build a [`CborPath`](CborPath) instance
 */
 use crate::{
     AbsolutePath, BooleanExpr, CborPath, Comparable, ComparisonExpr, ComparisonOperator, Error,
-    FilterSelector, Function, IndexSelector, KeySelector, Path, RelativePath, Segment, Selector,
+    FilterSelector, Function, IndexSelector, KeySelector, FilterPath, RelativePath, Segment, Selector,
     SingularPath, SingularSegment, SliceSelector,
 };
 use cbor_data::{CborOwned, CborBuilder, Writer, Literal};
@@ -386,11 +386,11 @@ impl PathBuilder {
     }
 
     #[inline]
-    pub(crate) fn build_path(self) -> Path {
+    pub(crate) fn build_path(self) -> FilterPath {
         if self.is_absolute {
-            Path::Abs(AbsolutePath::new(self.segments))
+            FilterPath::Abs(AbsolutePath::new(self.segments))
         } else {
-            Path::Rel(RelativePath::new(self.segments))
+            FilterPath::Rel(RelativePath::new(self.segments))
         }
     }
 }

@@ -1,12 +1,10 @@
-#[cfg(test)]
-use crate::builder::IntoCborOwned;
 use crate::{
-    builder::{self, PathBuilder},
+    builder::{self, PathBuilder, IntoCborOwned},
     Error,
 };
 use cbor_data::{Cbor, CborBuilder, CborOwned, ItemKind, Writer};
 use regex::Regex;
-use std::{borrow::Cow, vec};
+use std::{borrow::Cow, ops::Deref, vec};
 
 /// A path element
 ///
@@ -19,30 +17,44 @@ pub enum PathElement {
     Key(CborOwned),
 }
 
-impl PathElement {
-    #[cfg(test)]
-    pub(crate) fn index(index: usize) -> Self {
-        Self::Index(index)
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct Path(Vec<PathElement>);
+
+impl Path {
+    pub fn append_index(&self, index: usize) -> Self {
+        let mut path = Vec::with_capacity(self.0.len() + 1);
+        path.extend(self.0.iter().cloned());
+        path.push(PathElement::Index(index));
+        Self(path)
     }
 
-    #[cfg(test)]
-    pub(crate) fn key<K: IntoCborOwned>(key: K) -> Self {
-        Self::Key(key.into())
+    pub fn append_key(&self, key: &Cbor) -> Self {
+        let mut path = Vec::with_capacity(self.0.len() + 1);
+        path.extend(self.0.iter().cloned());
+        path.push(PathElement::Key(key.to_owned()));
+        Self(path)
+    }
+
+    pub fn idx(mut self, index: usize) -> Self {
+        self.0.push(PathElement::Index(index));
+        Self(self.0)
+    }
+
+    pub fn key<K>(mut self, key: K) -> Self
+    where
+        K: IntoCborOwned,
+    {
+        self.0.push(PathElement::Key(key.into()));
+        Self(self.0)
     }
 }
 
-fn append_index_to_path(path: &Vec<PathElement>, index: usize) -> Vec<PathElement> {
-    let mut new_path = Vec::with_capacity(path.len() + 1);
-    new_path.extend(path.iter().cloned());
-    new_path.push(PathElement::Index(index));
-    new_path
-}
+impl Deref for Path {
+    type Target = [PathElement];
 
-fn append_key_to_path(path: &Vec<PathElement>, key: &Cbor) -> Vec<PathElement> {
-    let mut new_path = Vec::with_capacity(path.len() + 1);
-    new_path.extend(path.iter().cloned());
-    new_path.push(PathElement::Key(key.to_owned()));
-    new_path
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 /// Represents a CBORPath expression
@@ -126,7 +138,7 @@ impl CborPath {
     /// The evaluation in itself does not raise any error:
     /// if the CBORPath expression does not match the input value, an empty list will be returned.
     #[inline]
-    pub fn get_paths(&self, cbor: &Cbor) -> Vec<Vec<PathElement>> {
+    pub fn get_paths(&self, cbor: &Cbor) -> Vec<Path> {
         self.0.get_paths(cbor)
     }
 
@@ -139,7 +151,7 @@ impl CborPath {
     ///
     /// Errors can only occur if the input buffer is not a valid `CBOR` document.
     #[inline]
-    pub fn get_paths_from_bytes(&self, cbor: &[u8]) -> Result<Vec<Vec<PathElement>>, Error> {
+    pub fn get_paths_from_bytes(&self, cbor: &[u8]) -> Result<Vec<Path>, Error> {
         let cbor = Cbor::checked(cbor)?;
         Ok(self.get_paths(cbor))
     }
@@ -171,13 +183,13 @@ impl AbsolutePath {
         current_values
     }
 
-    pub fn get_paths<'a>(&self, root: &'a Cbor) -> Vec<Vec<PathElement>> {
+    pub fn get_paths<'a>(&self, root: &'a Cbor) -> Vec<Path> {
         let mut current_values: Vec<&'a Cbor>;
-        let mut current_path: Vec<Vec<PathElement>>;
+        let mut current_path: Vec<Path>;
         let mut iter = self.0.iter();
 
         if let Some(first) = iter.next() {
-            (current_values, current_path) = first.get_paths(root, &[root], &[Vec::new()]);
+            (current_values, current_path) = first.get_paths(root, &[root], &[Path::default()]);
         } else {
             return Vec::new();
         }
@@ -218,19 +230,19 @@ impl RelativePath {
 }
 
 #[derive(Debug, PartialEq)]
-pub(crate) enum Path {
+pub(crate) enum FilterPath {
     /// Absolute path (begining by '$')
     Abs(AbsolutePath),
     /// Relative path (begining by '@')
     Rel(RelativePath),
 }
 
-impl Path {
+impl FilterPath {
     #[inline]
     pub fn evaluate<'a>(&self, root: &'a Cbor, current: &'a Cbor) -> Vec<&'a Cbor> {
         match self {
-            Path::Abs(path) => path.read(root),
-            Path::Rel(path) => path.evaluate(root, current),
+            FilterPath::Abs(path) => path.read(root),
+            FilterPath::Rel(path) => path.evaluate(root, current),
         }
     }
 }
@@ -268,8 +280,8 @@ impl Segment {
         &self,
         root: &'a Cbor,
         current_values: &[&'a Cbor],
-        current_paths: &[Vec<PathElement>],
-    ) -> (Vec<&'a Cbor>, Vec<Vec<PathElement>>) {
+        current_paths: &[Path],
+    ) -> (Vec<&'a Cbor>, Vec<Path>) {
         match self {
             Segment::Child(selectors) => current_values
                 .iter()
@@ -320,32 +332,21 @@ impl Segment {
     }
 
     fn fetch_descendants_with_paths<'a>(
-        descendants: &mut Vec<(&'a Cbor, Vec<PathElement>)>,
+        descendants: &mut Vec<(&'a Cbor, Path)>,
         value: &'a Cbor,
-        path: &Vec<PathElement>,
+        path: &Path,
     ) {
         match value.kind() {
             ItemKind::Array(a) => {
-                descendants.extend(
-                    a.enumerate()
-                        .map(|(i, v)| (v, append_index_to_path(path, i))),
-                );
+                descendants.extend(a.enumerate().map(|(i, v)| (v, path.append_index(i))));
                 for (i, v) in a.enumerate() {
-                    Self::fetch_descendants_with_paths(
-                        descendants,
-                        v,
-                        &append_index_to_path(path, i),
-                    );
+                    Self::fetch_descendants_with_paths(descendants, v, &path.append_index(i));
                 }
             }
             ItemKind::Dict(d) => {
-                descendants.extend(d.map(|(k, v)| (v, append_key_to_path(path, k))));
+                descendants.extend(d.map(|(k, v)| (v, path.append_key(k))));
                 for (k, v) in d {
-                    Self::fetch_descendants_with_paths(
-                        descendants,
-                        v,
-                        &append_key_to_path(path, k),
-                    );
+                    Self::fetch_descendants_with_paths(descendants, v, &path.append_key(k));
                 }
             }
             _ => (),
@@ -382,8 +383,8 @@ impl Selector {
         &self,
         root: &'a Cbor,
         current: &'a Cbor,
-        current_path: &Vec<PathElement>,
-    ) -> (Vec<&'a Cbor>, Vec<Vec<PathElement>>) {
+        current_path: &Path,
+    ) -> (Vec<&'a Cbor>, Vec<Path>) {
         match self {
             Selector::Key(selector) => selector.get_path(current, current_path),
             Selector::Wildcard => WildcardSelector.get_paths(current, current_path),
@@ -421,13 +422,9 @@ impl KeySelector {
         }
     }
 
-    fn get_path<'a>(
-        &self,
-        value: &'a Cbor,
-        path: &Vec<PathElement>,
-    ) -> (Vec<&'a Cbor>, Vec<Vec<PathElement>>) {
+    fn get_path<'a>(&self, value: &'a Cbor, path: &Path) -> (Vec<&'a Cbor>, Vec<Path>) {
         self.read_single(value)
-            .map(|v| (vec![v], vec![append_key_to_path(path, &self.0)]))
+            .map(|v| (vec![v], vec![path.append_key(&self.0)]))
             .unwrap_or_else(|| (Vec::new(), Vec::new()))
     }
 }
@@ -445,16 +442,12 @@ impl WildcardSelector {
         }
     }
 
-    fn get_paths<'a>(
-        &self,
-        value: &'a Cbor,
-        path: &Vec<PathElement>,
-    ) -> (Vec<&'a Cbor>, Vec<Vec<PathElement>>) {
+    fn get_paths<'a>(&self, value: &'a Cbor, path: &Path) -> (Vec<&'a Cbor>, Vec<Path>) {
         match value.kind() {
-            ItemKind::Dict(d) => d.map(|(k, v)| (v, append_key_to_path(path, k))).unzip(),
+            ItemKind::Dict(d) => d.map(|(k, v)| (v, path.append_key(k))).unzip(),
             ItemKind::Array(a) => a
                 .enumerate()
-                .map(|(i, v)| (v, append_index_to_path(path, i)))
+                .map(|(i, v)| (v, path.append_index(i)))
                 .unzip(),
             _ => (Vec::new(), Vec::new()),
         }
@@ -490,18 +483,14 @@ impl IndexSelector {
         }
     }
 
-    fn get_paths<'a>(
-        &self,
-        value: &'a Cbor,
-        path: &Vec<PathElement>,
-    ) -> (Vec<&'a Cbor>, Vec<Vec<PathElement>>) {
+    fn get_paths<'a>(&self, value: &'a Cbor, path: &Path) -> (Vec<&'a Cbor>, Vec<Path>) {
         match value.kind() {
             ItemKind::Array(mut array) => {
                 let len = array.size().unwrap_or(array.count() as u64) as usize;
                 let index = normalize_index(self.0, len) as usize;
                 array
                     .nth(index)
-                    .map(|v| (vec![v], vec![append_index_to_path(path, index)]))
+                    .map(|v| (vec![v], vec![path.append_index(index)]))
                     .unwrap_or_else(|| (Vec::new(), Vec::new()))
             }
             _ => (Vec::new(), Vec::new()),
@@ -554,11 +543,7 @@ impl SliceSelector {
         }
     }
 
-    fn get_paths<'a>(
-        &self,
-        value: &'a Cbor,
-        path: &Vec<PathElement>,
-    ) -> (Vec<&'a Cbor>, Vec<Vec<PathElement>>) {
+    fn get_paths<'a>(&self, value: &'a Cbor, path: &Path) -> (Vec<&'a Cbor>, Vec<Path>) {
         let SliceSelector(start, end, step) = &self;
         match value.kind() {
             ItemKind::Array(array) => {
@@ -575,7 +560,7 @@ impl SliceSelector {
                         .skip(start)
                         .take(end - start)
                         .step_by(step as usize)
-                        .map(|(i, v)| (v, append_index_to_path(path, i)))
+                        .map(|(i, v)| (v, path.append_index(i)))
                         .unzip()
                 } else {
                     let actual_start = usize::min(
@@ -583,12 +568,12 @@ impl SliceSelector {
                         len,
                     );
                     let actual_end = usize::min((start + 1) as usize, len);
-                    let (mut values, mut paths): (Vec<&'a Cbor>, Vec<Vec<PathElement>>) = array
+                    let (mut values, mut paths): (Vec<&'a Cbor>, Vec<Path>) = array
                         .enumerate()
                         .skip(actual_start)
                         .take(actual_end - actual_start)
                         .step_by(-step as usize)
-                        .map(|(i, v)| (v, append_index_to_path(path, i)))
+                        .map(|(i, v)| (v, path.append_index(i)))
                         .unzip();
                     values.reverse();
                     paths.reverse();
@@ -631,15 +616,15 @@ impl FilterSelector {
         &self,
         root: &'a Cbor,
         current: &'a Cbor,
-        path: &Vec<PathElement>,
-    ) -> (Vec<&'a Cbor>, Vec<Vec<PathElement>>) {
+        path: &Path,
+    ) -> (Vec<&'a Cbor>, Vec<Path>) {
         let Self(boolean_expr) = &self;
         match current.kind() {
             ItemKind::Array(a) => a
                 .enumerate()
                 .filter_map(|(i, v)| {
                     if boolean_expr.read(root, v) {
-                        Some((v, append_index_to_path(path, i)))
+                        Some((v, path.append_index(i)))
                     } else {
                         None
                     }
@@ -648,7 +633,7 @@ impl FilterSelector {
             ItemKind::Dict(d) => d
                 .filter_map(|(k, v)| {
                     if boolean_expr.read(root, v) {
-                        Some((v, append_key_to_path(path, k)))
+                        Some((v, path.append_key(k)))
                     } else {
                         None
                     }
@@ -666,7 +651,7 @@ pub(crate) enum BooleanExpr {
     Not(Box<BooleanExpr>),
     Comparison(ComparisonExpr),
     /// path existence or non-existence
-    Path(Path),
+    Path(FilterPath),
     Function(Function),
 }
 
@@ -847,7 +832,7 @@ impl SingularSegment {
 #[derive(Debug)]
 pub(crate) enum Function {
     Length(Box<Comparable>),
-    Count(Path),
+    Count(FilterPath),
     Regex(Box<Comparable>, Regex),
 }
 

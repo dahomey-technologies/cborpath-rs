@@ -4,7 +4,7 @@ use crate::{
         val,
     },
     tests::util::diag_to_bytes,
-    CborPath, Error, PathElement,
+    CborPath, Error, Path,
 };
 
 #[test]
@@ -13,7 +13,7 @@ fn root() -> Result<(), Error> {
 
     let cbor_path = CborPath::new(vec![]);
     let result = cbor_path.get_paths_from_bytes(&value)?;
-    assert_eq!(Vec::<Vec::<PathElement>>::new(), result);
+    assert_eq!(Vec::<Path>::new(), result);
 
     Ok(())
 }
@@ -24,21 +24,11 @@ fn key() -> Result<(), Error> {
 
     let cbor_path = CborPath::builder().key("o").key("j j").key("k k").build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
-    assert_eq!(
-        vec![vec![
-            PathElement::key("o"),
-            PathElement::key("j j"),
-            PathElement::key("k k")
-        ]],
-        result
-    );
+    assert_eq!(vec![Path::default().key("o").key("j j").key("k k")], result);
 
     let cbor_path = CborPath::builder().key("*").key("@").build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
-    assert_eq!(
-        vec![vec![PathElement::key("*"), PathElement::key("@")]],
-        result
-    );
+    assert_eq!(vec![Path::default().key("*").key("@")], result);
 
     Ok(())
 }
@@ -50,7 +40,7 @@ fn wildcard() -> Result<(), Error> {
     let cbor_path = CborPath::builder().wildcard().build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
-        vec![vec![PathElement::key("o")], vec![PathElement::key("a")]],
+        vec![Path::default().key("o"), Path::default().key("a")],
         result
     );
 
@@ -58,8 +48,8 @@ fn wildcard() -> Result<(), Error> {
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
         vec![
-            vec![PathElement::key("o"), PathElement::key("j")],
-            vec![PathElement::key("o"), PathElement::key("k")]
+            Path::default().key("o").key("j"),
+            Path::default().key("o").key("k")
         ],
         result
     );
@@ -71,10 +61,10 @@ fn wildcard() -> Result<(), Error> {
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
         vec![
-            vec![PathElement::key("o"), PathElement::key("j")],
-            vec![PathElement::key("o"), PathElement::key("k")],
-            vec![PathElement::key("o"), PathElement::key("j")],
-            vec![PathElement::key("o"), PathElement::key("k")],
+            Path::default().key("o").key("j"),
+            Path::default().key("o").key("k"),
+            Path::default().key("o").key("j"),
+            Path::default().key("o").key("k")
         ],
         result
     );
@@ -83,8 +73,8 @@ fn wildcard() -> Result<(), Error> {
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
         vec![
-            vec![PathElement::key("a"), PathElement::index(0)],
-            vec![PathElement::key("a"), PathElement::index(1)],
+            Path::default().key("a").idx(0),
+            Path::default().key("a").idx(1),
         ],
         result
     );
@@ -98,11 +88,11 @@ fn index() -> Result<(), Error> {
 
     let cbor_path = CborPath::builder().index(1).build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
-    assert_eq!(vec![vec![PathElement::index(1)]], result);
+    assert_eq!(vec![Path::default().idx(1)], result);
 
     let cbor_path = CborPath::builder().index(-2).build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
-    assert_eq!(vec![vec![PathElement::index(0)]], result);
+    assert_eq!(vec![Path::default().idx(0)], result);
 
     Ok(())
 }
@@ -113,32 +103,23 @@ fn slice() -> Result<(), Error> {
 
     let cbor_path = CborPath::builder().slice(1, 3, 1).build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
-    assert_eq!(
-        vec![vec![PathElement::index(1)], vec![PathElement::index(2)]],
-        result
-    );
+    assert_eq!(vec![Path::default().idx(1), Path::default().idx(2)], result);
 
     let cbor_path = CborPath::builder().slice(1, 5, 2).build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
-    assert_eq!(
-        vec![vec![PathElement::index(1)], vec![PathElement::index(3)]],
-        result
-    );
+    assert_eq!(vec![Path::default().idx(1), Path::default().idx(3)], result);
 
     let cbor_path = CborPath::builder().slice(5, 1, -2).build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
-    assert_eq!(
-        vec![vec![PathElement::index(5)], vec![PathElement::index(3)]],
-        result
-    );
+    assert_eq!(vec![Path::default().idx(5), Path::default().idx(3)], result);
 
     let cbor_path = CborPath::builder().slice(0, 7, 3).build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
         vec![
-            vec![PathElement::index(0)],
-            vec![PathElement::index(3)],
-            vec![PathElement::index(6)]
+            Path::default().idx(0),
+            Path::default().idx(3),
+            Path::default().idx(6)
         ],
         result
     );
@@ -147,31 +128,28 @@ fn slice() -> Result<(), Error> {
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
         vec![
-            vec![PathElement::index(6)],
-            vec![PathElement::index(3)],
-            vec![PathElement::index(0)]
+            Path::default().idx(6),
+            Path::default().idx(3),
+            Path::default().idx(0)
         ],
         result
     );
 
     let cbor_path = CborPath::builder().slice(5, -8, -3).build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
-    assert_eq!(
-        vec![vec![PathElement::index(5)], vec![PathElement::index(2)]],
-        result
-    );
+    assert_eq!(vec![Path::default().idx(5), Path::default().idx(2)], result);
 
     let cbor_path = CborPath::builder().slice(6, -8, -1).build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
         vec![
-            vec![PathElement::index(6)],
-            vec![PathElement::index(5)],
-            vec![PathElement::index(4)],
-            vec![PathElement::index(3)],
-            vec![PathElement::index(2)],
-            vec![PathElement::index(1)],
-            vec![PathElement::index(0)]
+            Path::default().idx(6),
+            Path::default().idx(5),
+            Path::default().idx(4),
+            Path::default().idx(3),
+            Path::default().idx(2),
+            Path::default().idx(1),
+            Path::default().idx(0)
         ],
         result
     );
@@ -196,10 +174,7 @@ fn filter() -> Result<(), Error> {
         .filter(eq(sing_rel_path().key("b"), val("kilo")))
         .build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
-    assert_eq!(
-        vec![vec![PathElement::key("a"), PathElement::index(9)]],
-        result
-    );
+    assert_eq!(vec![Path::default().key("a").idx(9)], result);
 
     // ["$", "a", {"?": {">": [["@"], 3]}]
     let cbor_path = CborPath::builder()
@@ -209,9 +184,9 @@ fn filter() -> Result<(), Error> {
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
         vec![
-            vec![PathElement::key("a"), PathElement::index(1)],
-            vec![PathElement::key("a"), PathElement::index(4)],
-            vec![PathElement::key("a"), PathElement::index(5)],
+            Path::default().key("a").idx(1),
+            Path::default().key("a").idx(4),
+            Path::default().key("a").idx(5),
         ],
         result
     );
@@ -224,10 +199,10 @@ fn filter() -> Result<(), Error> {
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
         vec![
-            vec![PathElement::key("a"), PathElement::index(6)],
-            vec![PathElement::key("a"), PathElement::index(7)],
-            vec![PathElement::key("a"), PathElement::index(8)],
-            vec![PathElement::key("a"), PathElement::index(9)],
+            Path::default().key("a").idx(6),
+            Path::default().key("a").idx(7),
+            Path::default().key("a").idx(8),
+            Path::default().key("a").idx(9),
         ],
         result
     );
@@ -236,7 +211,7 @@ fn filter() -> Result<(), Error> {
     let cbor_path = CborPath::builder().filter(rel_path().wildcard()).build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
-        vec![vec![PathElement::key("a")], vec![PathElement::key("o")]],
+        vec![Path::default().key("a"), Path::default().key("o")],
         result
     );
 
@@ -245,7 +220,7 @@ fn filter() -> Result<(), Error> {
         .filter(rel_path().filter(rel_path().key("b")))
         .build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
-    assert_eq!(vec![vec![PathElement::key("a")]], result);
+    assert_eq!(vec![Path::default().key("a")], result);
 
     // ["$", "o", [{"?": {"<", [["@"], 3]}}, {"?": {"<", [["@"], 3]}}]]
     let cbor_path = CborPath::builder()
@@ -259,10 +234,10 @@ fn filter() -> Result<(), Error> {
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
         vec![
-            vec![PathElement::key("o"), PathElement::key("p")],
-            vec![PathElement::key("o"), PathElement::key("q")],
-            vec![PathElement::key("o"), PathElement::key("p")],
-            vec![PathElement::key("o"), PathElement::key("q")]
+            Path::default().key("o").key("p"),
+            Path::default().key("o").key("q"),
+            Path::default().key("o").key("p"),
+            Path::default().key("o").key("q")
         ],
         result
     );
@@ -278,8 +253,8 @@ fn filter() -> Result<(), Error> {
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
         vec![
-            vec![PathElement::key("a"), PathElement::index(2)],
-            vec![PathElement::key("a"), PathElement::index(7)]
+            Path::default().key("a").idx(2),
+            Path::default().key("a").idx(7)
         ],
         result
     );
@@ -292,8 +267,8 @@ fn filter() -> Result<(), Error> {
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
         vec![
-            vec![PathElement::key("a"), PathElement::index(6)],
-            vec![PathElement::key("a"), PathElement::index(7)]
+            Path::default().key("a").idx(6),
+            Path::default().key("a").idx(7)
         ],
         result
     );
@@ -306,9 +281,9 @@ fn filter() -> Result<(), Error> {
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
         vec![
-            vec![PathElement::key("a"), PathElement::index(6)],
-            vec![PathElement::key("a"), PathElement::index(7)],
-            vec![PathElement::key("a"), PathElement::index(9)]
+            Path::default().key("a").idx(6),
+            Path::default().key("a").idx(7),
+            Path::default().key("a").idx(9)
         ],
         result
     );
@@ -324,8 +299,8 @@ fn filter() -> Result<(), Error> {
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
         vec![
-            vec![PathElement::key("o"), PathElement::key("q")],
-            vec![PathElement::key("o"), PathElement::key("r")]
+            Path::default().key("o").key("q"),
+            Path::default().key("o").key("r")
         ],
         result
     );
@@ -336,10 +311,7 @@ fn filter() -> Result<(), Error> {
         .filter(or(rel_path().key("u"), rel_path().key("x")))
         .build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
-    assert_eq!(
-        vec![vec![PathElement::key("o"), PathElement::key("t")]],
-        result
-    );
+    assert_eq!(vec![Path::default().key("o").key("t")], result);
 
     // ["$", "a", {"?": {"==": [["@", "b"], ["$", "x"]]}}]
     let cbor_path = CborPath::builder()
@@ -349,12 +321,12 @@ fn filter() -> Result<(), Error> {
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
         vec![
-            vec![PathElement::key("a"), PathElement::index(0)],
-            vec![PathElement::key("a"), PathElement::index(1)],
-            vec![PathElement::key("a"), PathElement::index(2)],
-            vec![PathElement::key("a"), PathElement::index(3)],
-            vec![PathElement::key("a"), PathElement::index(4)],
-            vec![PathElement::key("a"), PathElement::index(5)]
+            Path::default().key("a").idx(0),
+            Path::default().key("a").idx(1),
+            Path::default().key("a").idx(2),
+            Path::default().key("a").idx(3),
+            Path::default().key("a").idx(4),
+            Path::default().key("a").idx(5)
         ],
         result
     );
@@ -371,10 +343,7 @@ fn child_segment() -> Result<(), Error> {
         .child(segment().index(0).index(3))
         .build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
-    assert_eq!(
-        vec![vec![PathElement::index(0)], vec![PathElement::index(3)]],
-        result
-    );
+    assert_eq!(vec![Path::default().idx(0), Path::default().idx(3)], result);
 
     // ["$", [{":": [0, 2, 1]}, {"#": 5}]]
     let cbor_path = CborPath::builder()
@@ -383,9 +352,9 @@ fn child_segment() -> Result<(), Error> {
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
         vec![
-            vec![PathElement::index(0)],
-            vec![PathElement::index(1)],
-            vec![PathElement::index(5)]
+            Path::default().idx(0),
+            Path::default().idx(1),
+            Path::default().idx(5)
         ],
         result
     );
@@ -395,10 +364,7 @@ fn child_segment() -> Result<(), Error> {
         .child(segment().index(0).index(0))
         .build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
-    assert_eq!(
-        vec![vec![PathElement::index(0)], vec![PathElement::index(0)]],
-        result
-    );
+    assert_eq!(vec![Path::default().idx(0), Path::default().idx(0)], result);
 
     Ok(())
 }
@@ -412,13 +378,8 @@ fn descendant_segment() -> Result<(), Error> {
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
         vec![
-            vec![PathElement::key("o"), PathElement::key("j")],
-            vec![
-                PathElement::key("a"),
-                PathElement::index(2),
-                PathElement::index(0),
-                PathElement::key("j")
-            ]
+            Path::default().key("o").key("j"),
+            Path::default().key("a").idx(2).idx(0).key("j")
         ],
         result
     );
@@ -428,12 +389,8 @@ fn descendant_segment() -> Result<(), Error> {
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
         vec![
-            vec![PathElement::key("a"), PathElement::index(0)],
-            vec![
-                PathElement::key("a"),
-                PathElement::index(2),
-                PathElement::index(0)
-            ]
+            Path::default().key("a").idx(0),
+            Path::default().key("a").idx(2).idx(0)
         ],
         result
     );
@@ -443,35 +400,17 @@ fn descendant_segment() -> Result<(), Error> {
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
         vec![
-            vec![PathElement::key("o")],
-            vec![PathElement::key("a")],
-            vec![PathElement::key("o"), PathElement::key("j")],
-            vec![PathElement::key("o"), PathElement::key("k")],
-            vec![PathElement::key("a"), PathElement::index(0)],
-            vec![PathElement::key("a"), PathElement::index(1)],
-            vec![PathElement::key("a"), PathElement::index(2)],
-            vec![
-                PathElement::key("a"),
-                PathElement::index(2),
-                PathElement::index(0)
-            ],
-            vec![
-                PathElement::key("a"),
-                PathElement::index(2),
-                PathElement::index(1)
-            ],
-            vec![
-                PathElement::key("a"),
-                PathElement::index(2),
-                PathElement::index(0),
-                PathElement::key("j")
-            ],
-            vec![
-                PathElement::key("a"),
-                PathElement::index(2),
-                PathElement::index(1),
-                PathElement::key("k")
-            ],
+            Path::default().key("o"),
+            Path::default().key("a"),
+            Path::default().key("o").key("j"),
+            Path::default().key("o").key("k"),
+            Path::default().key("a").idx(0),
+            Path::default().key("a").idx(1),
+            Path::default().key("a").idx(2),
+            Path::default().key("a").idx(2).idx(0),
+            Path::default().key("a").idx(2).idx(1),
+            Path::default().key("a").idx(2).idx(0).key("j"),
+            Path::default().key("a").idx(2).idx(1).key("k")
         ],
         result
     );
@@ -479,7 +418,7 @@ fn descendant_segment() -> Result<(), Error> {
     // ["$", {"..": "o"}]
     let cbor_path = CborPath::builder().descendant(segment().key("o")).build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
-    assert_eq!(vec![vec![PathElement::key("o")]], result);
+    assert_eq!(vec![Path::default().key("o")], result);
 
     // ["$", "o", {"..": [{"*": 1}, {"*": 1}]}]
     let cbor_path = CborPath::builder()
@@ -489,10 +428,10 @@ fn descendant_segment() -> Result<(), Error> {
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
         vec![
-            vec![PathElement::key("o"), PathElement::key("j")],
-            vec![PathElement::key("o"), PathElement::key("k")],
-            vec![PathElement::key("o"), PathElement::key("j")],
-            vec![PathElement::key("o"), PathElement::key("k")],
+            Path::default().key("o").key("j"),
+            Path::default().key("o").key("k"),
+            Path::default().key("o").key("j"),
+            Path::default().key("o").key("k"),
         ],
         result
     );
@@ -505,18 +444,10 @@ fn descendant_segment() -> Result<(), Error> {
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
         vec![
-            vec![PathElement::key("a"), PathElement::index(0)],
-            vec![PathElement::key("a"), PathElement::index(1)],
-            vec![
-                PathElement::key("a"),
-                PathElement::index(2),
-                PathElement::index(0)
-            ],
-            vec![
-                PathElement::key("a"),
-                PathElement::index(2),
-                PathElement::index(1)
-            ],
+            Path::default().key("a").idx(0),
+            Path::default().key("a").idx(1),
+            Path::default().key("a").idx(2).idx(0),
+            Path::default().key("a").idx(2).idx(1)
         ],
         result
     );
@@ -531,41 +462,32 @@ fn null() -> Result<(), Error> {
     // ["$", "a"]
     let cbor_path = CborPath::builder().key("a").build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
-    assert_eq!(vec![vec![PathElement::key("a")]], result);
+    assert_eq!(vec![Path::default().key("a")], result);
 
     // ["$", "a", {"#": 0}]
     let cbor_path = CborPath::builder().key("a").index(0).build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
-    assert_eq!(Vec::<Vec::<PathElement>>::new(), result);
+    assert_eq!(Vec::<Path>::new(), result);
 
     // ["$", "a", "d"]
     let cbor_path = CborPath::builder().key("a").key("d").build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
-    assert_eq!(Vec::<Vec::<PathElement>>::new(), result);
+    assert_eq!(Vec::<Path>::new(), result);
 
     // ["$", "b", {"#": 0}]
     let cbor_path = CborPath::builder().key("b").index(0).build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
-    assert_eq!(
-        vec![vec![PathElement::key("b"), PathElement::index(0)]],
-        result
-    );
+    assert_eq!(vec![Path::default().key("b").idx(0)], result);
 
     // ["$", "b", "*"]
     let cbor_path = CborPath::builder().key("b").wildcard().build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
-    assert_eq!(
-        vec![vec![PathElement::key("b"), PathElement::index(0)]],
-        result
-    );
+    assert_eq!(vec![Path::default().key("b").idx(0)], result);
 
     // ["$", "b", {"?": "@"}]
     let cbor_path = CborPath::builder().key("b").filter(rel_path()).build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
-    assert_eq!(
-        vec![vec![PathElement::key("b"), PathElement::index(0)]],
-        result
-    );
+    assert_eq!(vec![Path::default().key("b").idx(0)], result);
 
     // ["$", "b", {"?": {"==": ["@", null]}}]
     let cbor_path = CborPath::builder()
@@ -573,10 +495,7 @@ fn null() -> Result<(), Error> {
         .filter(eq(sing_rel_path(), val(())))
         .build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
-    assert_eq!(
-        vec![vec![PathElement::key("b"), PathElement::index(0)]],
-        result
-    );
+    assert_eq!(vec![Path::default().key("b").idx(0)], result);
 
     // ["$", "b", {"?": {"==": [["@", "d"], null]}}]
     let cbor_path = CborPath::builder()
@@ -584,12 +503,12 @@ fn null() -> Result<(), Error> {
         .filter(eq(sing_rel_path().key("d"), val(())))
         .build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
-    assert_eq!(Vec::<Vec::<PathElement>>::new(), result);
+    assert_eq!(Vec::<Path>::new(), result);
 
     // ["$", "null"]
     let cbor_path = CborPath::builder().key("null").build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
-    assert_eq!(vec![vec![PathElement::key("null")]], result);
+    assert_eq!(vec![Path::default().key("null")], result);
 
     Ok(())
 }
@@ -608,7 +527,7 @@ fn count() -> Result<(), Error> {
         .filter(eq(builder::count(rel_path().wildcard()), val(2)))
         .build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
-    assert_eq!(vec![vec![PathElement::key("o")]], result);
+    assert_eq!(vec![Path::default().key("o")], result);
 
     Ok(())
 }
@@ -628,7 +547,7 @@ fn filter_root_current() -> Result<(), Error> {
         .descendant(segment().filter(lt(sing_rel_path().key("k"), sing_abs_path().key("c"))))
         .build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
-    assert_eq!(vec![vec![PathElement::key("a")]], result);
+    assert_eq!(vec![Path::default().key("a")], result);
 
     Ok(())
 }
@@ -681,30 +600,26 @@ fn store() -> Result<(), Error> {
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
         vec![
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(0),
-                PathElement::key("author")
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(1),
-                PathElement::key("author")
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(2),
-                PathElement::key("author")
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(3),
-                PathElement::key("author")
-            ],
+            Path::default()
+                .key("store")
+                .key("book")
+                .idx(0)
+                .key("author"),
+            Path::default()
+                .key("store")
+                .key("book")
+                .idx(1)
+                .key("author"),
+            Path::default()
+                .key("store")
+                .key("book")
+                .idx(2)
+                .key("author"),
+            Path::default()
+                .key("store")
+                .key("book")
+                .idx(3)
+                .key("author")
         ],
         result
     );
@@ -717,30 +632,26 @@ fn store() -> Result<(), Error> {
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
         vec![
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(0),
-                PathElement::key("author")
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(1),
-                PathElement::key("author")
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(2),
-                PathElement::key("author")
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(3),
-                PathElement::key("author")
-            ],
+            Path::default()
+                .key("store")
+                .key("book")
+                .idx(0)
+                .key("author"),
+            Path::default()
+                .key("store")
+                .key("book")
+                .idx(1)
+                .key("author"),
+            Path::default()
+                .key("store")
+                .key("book")
+                .idx(2)
+                .key("author"),
+            Path::default()
+                .key("store")
+                .key("book")
+                .idx(3)
+                .key("author")
         ],
         result
     );
@@ -751,8 +662,8 @@ fn store() -> Result<(), Error> {
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
         vec![
-            vec![PathElement::key("store"), PathElement::key("book")],
-            vec![PathElement::key("store"), PathElement::key("bicycle")]
+            Path::default().key("store").key("book"),
+            Path::default().key("store").key("bicycle")
         ],
         result
     );
@@ -766,35 +677,11 @@ fn store() -> Result<(), Error> {
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
         vec![
-            vec![
-                PathElement::key("store"),
-                PathElement::key("bicycle"),
-                PathElement::key("price")
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(0),
-                PathElement::key("price")
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(1),
-                PathElement::key("price")
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(2),
-                PathElement::key("price")
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(3),
-                PathElement::key("price")
-            ]
+            Path::default().key("store").key("bicycle").key("price"),
+            Path::default().key("store").key("book").idx(0).key("price"),
+            Path::default().key("store").key("book").idx(1).key("price"),
+            Path::default().key("store").key("book").idx(2).key("price"),
+            Path::default().key("store").key("book").idx(3).key("price")
         ],
         result
     );
@@ -807,11 +694,7 @@ fn store() -> Result<(), Error> {
         .build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
-        vec![vec![
-            PathElement::key("store"),
-            PathElement::key("book"),
-            PathElement::index(2)
-        ]],
+        vec![Path::default().key("store").key("book").idx(2)],
         result
     );
 
@@ -823,11 +706,7 @@ fn store() -> Result<(), Error> {
         .build();
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
-        vec![vec![
-            PathElement::key("store"),
-            PathElement::key("book"),
-            PathElement::index(3)
-        ]],
+        vec![Path::default().key("store").key("book").idx(3)],
         result
     );
 
@@ -840,16 +719,8 @@ fn store() -> Result<(), Error> {
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
         vec![
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(0)
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(1)
-            ]
+            Path::default().key("store").key("book").idx(0),
+            Path::default().key("store").key("book").idx(1)
         ],
         result
     );
@@ -863,16 +734,8 @@ fn store() -> Result<(), Error> {
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
         vec![
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(0)
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(1)
-            ]
+            Path::default().key("store").key("book").idx(0),
+            Path::default().key("store").key("book").idx(1)
         ],
         result
     );
@@ -886,16 +749,8 @@ fn store() -> Result<(), Error> {
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
         vec![
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(2)
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(3)
-            ]
+            Path::default().key("store").key("book").idx(2),
+            Path::default().key("store").key("book").idx(3)
         ],
         result
     );
@@ -912,16 +767,8 @@ fn store() -> Result<(), Error> {
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
         vec![
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(0)
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(2)
-            ]
+            Path::default().key("store").key("book").idx(0),
+            Path::default().key("store").key("book").idx(2)
         ],
         result
     );
@@ -934,147 +781,65 @@ fn store() -> Result<(), Error> {
     let result = cbor_path.get_paths_from_bytes(&value)?;
     assert_eq!(
         vec![
-            vec![PathElement::key("store")],
-            vec![PathElement::key("store"), PathElement::key("book")],
-            vec![PathElement::key("store"), PathElement::key("bicycle")],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(0)
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(1)
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(2)
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(3)
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("bicycle"),
-                PathElement::key("color"),
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("bicycle"),
-                PathElement::key("price"),
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(0),
-                PathElement::key("category"),
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(0),
-                PathElement::key("author"),
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(0),
-                PathElement::key("title"),
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(0),
-                PathElement::key("price"),
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(1),
-                PathElement::key("category"),
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(1),
-                PathElement::key("author"),
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(1),
-                PathElement::key("title"),
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(1),
-                PathElement::key("price"),
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(2),
-                PathElement::key("category"),
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(2),
-                PathElement::key("author"),
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(2),
-                PathElement::key("title"),
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(2),
-                PathElement::key("isbn"),
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(2),
-                PathElement::key("price"),
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(3),
-                PathElement::key("category"),
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(3),
-                PathElement::key("author"),
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(3),
-                PathElement::key("title"),
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(3),
-                PathElement::key("isbn"),
-            ],
-            vec![
-                PathElement::key("store"),
-                PathElement::key("book"),
-                PathElement::index(3),
-                PathElement::key("price"),
-            ],
+            Path::default().key("store"),
+            Path::default().key("store").key("book"),
+            Path::default().key("store").key("bicycle"),
+            Path::default().key("store").key("book").idx(0),
+            Path::default().key("store").key("book").idx(1),
+            Path::default().key("store").key("book").idx(2),
+            Path::default().key("store").key("book").idx(3),
+            Path::default().key("store").key("bicycle").key("color"),
+            Path::default().key("store").key("bicycle").key("price"),
+            Path::default()
+                .key("store")
+                .key("book")
+                .idx(0)
+                .key("category"),
+            Path::default()
+                .key("store")
+                .key("book")
+                .idx(0)
+                .key("author"),
+            Path::default().key("store").key("book").idx(0).key("title"),
+            Path::default().key("store").key("book").idx(0).key("price"),
+            Path::default()
+                .key("store")
+                .key("book")
+                .idx(1)
+                .key("category"),
+            Path::default()
+                .key("store")
+                .key("book")
+                .idx(1)
+                .key("author"),
+            Path::default().key("store").key("book").idx(1).key("title"),
+            Path::default().key("store").key("book").idx(1).key("price"),
+            Path::default()
+                .key("store")
+                .key("book")
+                .idx(2)
+                .key("category"),
+            Path::default()
+                .key("store")
+                .key("book")
+                .idx(2)
+                .key("author"),
+            Path::default().key("store").key("book").idx(2).key("title"),
+            Path::default().key("store").key("book").idx(2).key("isbn"),
+            Path::default().key("store").key("book").idx(2).key("price"),
+            Path::default()
+                .key("store")
+                .key("book")
+                .idx(3)
+                .key("category"),
+            Path::default()
+                .key("store")
+                .key("book")
+                .idx(3)
+                .key("author"),
+            Path::default().key("store").key("book").idx(3).key("title"),
+            Path::default().key("store").key("book").idx(3).key("isbn"),
+            Path::default().key("store").key("book").idx(3).key("price")
         ],
         result
     );

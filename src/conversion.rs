@@ -1,6 +1,6 @@
 use crate::{
     builder, AbsolutePath, BooleanExpr, CborPath, Comparable, ComparisonExpr, ComparisonOperator,
-    Error, FilterSelector, Function, IndexSelector, KeySelector, Path, RelativePath, Segment,
+    Error, FilterSelector, Function, IndexSelector, KeySelector, FilterPath, RelativePath, Segment,
     Selector, SingularPath, SingularSegment, SliceSelector,
 };
 use cbor_data::{Cbor, ItemKind, ArrayIter};
@@ -14,14 +14,14 @@ impl TryFrom<&Cbor> for CborPath {
     }
 }
 
-impl TryFrom<&Cbor> for Path {
+impl TryFrom<&Cbor> for FilterPath {
     type Error = Error;
 
     fn try_from(value: &Cbor) -> Result<Self, Self::Error> {
         match value.kind() {
             ItemKind::Str(identifier) => match identifier.as_str() {
-                Some("$") => Ok(Path::Abs(AbsolutePath::new(vec![]))),
-                Some("@") => Ok(Path::Rel(RelativePath::new(vec![]))),
+                Some("$") => Ok(FilterPath::Abs(AbsolutePath::new(vec![]))),
+                Some("@") => Ok(FilterPath::Rel(RelativePath::new(vec![]))),
                 _ => Err(Error::Conversion(
                     "Expected path identifier `$` or `@`".to_owned(),
                 )),
@@ -57,9 +57,9 @@ impl TryFrom<&Cbor> for Path {
                 }
 
                 if is_absolute_path {
-                    Ok(Path::Abs(AbsolutePath::new(segments)))
+                    Ok(FilterPath::Abs(AbsolutePath::new(segments)))
                 } else {
-                    Ok(Path::Rel(RelativePath::new(segments)))
+                    Ok(FilterPath::Rel(RelativePath::new(segments)))
                 }
             }
             _ => Err(Error::Conversion(format!(
