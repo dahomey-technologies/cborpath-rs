@@ -13,7 +13,7 @@ fn root() -> Result<(), Error> {
 
     let cbor_path = CborPath::new(vec![]);
     let result = cbor_path.get_paths_from_bytes(&value)?;
-    assert_eq!(Vec::<Path>::new(), result);
+    assert_eq!(vec![Path::default()], result);
 
     Ok(())
 }

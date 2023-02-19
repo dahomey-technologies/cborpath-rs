@@ -562,6 +562,7 @@ pub mod builder;
 mod cbor_path;
 mod conversion;
 mod error;
+mod write_visitor;
 
 pub use cbor_path::*;
 pub use error::*;
