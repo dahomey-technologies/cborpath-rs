@@ -12,7 +12,7 @@ use cbor_data::Cbor;
 fn root() -> Result<(), Error> {
     let value = diag_to_bytes(r#"{"k": "v"}"#);
 
-    let cbor_path = CborPath::new(vec![]);
+    let cbor_path = CborPath::builder().build();
     let result = cbor_path.read_from_bytes(&value)?;
 
     assert_eq!(diag_to_bytes(r#"[{"k": "v"}]"#), result);

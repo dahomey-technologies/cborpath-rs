@@ -6,7 +6,7 @@ use crate::{
     FilterSelector, Function, IndexSelector, KeySelector, FilterPath, RelativePath, Segment, Selector,
     SingularPath, SingularSegment, SliceSelector,
 };
-use cbor_data::{CborOwned, CborBuilder, Writer, Literal};
+use cbor_data::{CborOwned, CborBuilder, Writer, Literal, Cbor};
 use regex::Regex;
 
 /// Represents an absolute path (beginning by a '$')
@@ -751,5 +751,11 @@ impl IntoCborOwned for &[u8] {
 impl IntoCborOwned for () {
     fn into(self) -> CborOwned {
         CborBuilder::new().write_null(None)
+    }
+}
+
+impl<'a> IntoCborOwned for &'a Cbor {
+    fn into(self) -> CborOwned {
+        self.to_owned()
     }
 }

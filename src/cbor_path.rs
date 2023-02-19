@@ -1,10 +1,15 @@
 use crate::{
-    builder::{self, PathBuilder, IntoCborOwned},
+    builder::{self, IntoCborOwned, PathBuilder},
     Error,
 };
-use cbor_data::{Cbor, CborBuilder, CborOwned, ItemKind, Writer};
+use cbor_data::{Cbor, CborBuilder, CborOwned, ItemKind, TaggedItem, Visitor, Writer};
 use regex::Regex;
-use std::{borrow::Cow, ops::Deref, vec};
+use std::{
+    borrow::Cow,
+    fmt::{self, Display, Formatter},
+    ops::Deref,
+    vec,
+};
 
 /// A path element
 ///
@@ -17,24 +22,22 @@ pub enum PathElement {
     Key(CborOwned),
 }
 
+impl Display for PathElement {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            PathElement::Index(index) => write!(f, "{index}"),
+            PathElement::Key(key) => match key.kind() {
+                ItemKind::Str(str) => write!(f, "{}", str.as_cow()),
+                _ => write!(f, "{key:?}"),
+            },
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct Path(Vec<PathElement>);
 
 impl Path {
-    pub fn append_idx(&self, index: usize) -> Self {
-        let mut path = Vec::with_capacity(self.0.len() + 1);
-        path.extend(self.0.iter().cloned());
-        path.push(PathElement::Index(index));
-        Self(path)
-    }
-
-    pub fn append_key(&self, key: &Cbor) -> Self {
-        let mut path = Vec::with_capacity(self.0.len() + 1);
-        path.extend(self.0.iter().cloned());
-        path.push(PathElement::Key(key.to_owned()));
-        Self(path)
-    }
-
     pub fn idx(mut self, index: usize) -> Self {
         self.0.push(PathElement::Index(index));
         Self(self.0)
@@ -47,6 +50,43 @@ impl Path {
         self.0.push(PathElement::Key(key.into()));
         Self(self.0)
     }
+
+    pub fn child_from_idx(&self, index: usize) -> Self {
+        let mut path = Vec::with_capacity(self.0.len() + 1);
+        path.extend(self.0.iter().cloned());
+        path.push(PathElement::Index(index));
+        Self(path)
+    }
+
+    pub fn child_from_key(&self, key: &Cbor) -> Self {
+        let mut path = Vec::with_capacity(self.0.len() + 1);
+        path.extend(self.0.iter().cloned());
+        path.push(PathElement::Key(key.to_owned()));
+        Self(path)
+    }
+
+    pub fn append_idx(&mut self, index: usize) {
+        self.0.push(PathElement::Index(index));
+    }
+
+    pub fn append_key<K>(&mut self, key: K)
+    where
+        K: IntoCborOwned,
+    {
+        self.0.push(PathElement::Key(key.into()));
+    }
+
+    pub fn pop(&mut self) -> Option<PathElement> {
+        self.0.pop()
+    }
+
+    pub fn is_parent(&self, other: &Path) -> bool {
+        if self.0.len() >= other.0.len() {
+            return false;
+        }
+
+        self.0.iter().zip(other.0.iter()).all(|(r, l)| r == l)
+    }
 }
 
 impl Deref for Path {
@@ -54,6 +94,21 @@ impl Deref for Path {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl Display for Path {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let mut first = true;
+        for element in &self.0 {
+            if first {
+                write!(f, "{element}")?;
+                first = false;
+            } else {
+                write!(f, ".{element}")?;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -154,6 +209,183 @@ impl CborPath {
     pub fn get_paths_from_bytes(&self, cbor: &[u8]) -> Result<Vec<Path>, Error> {
         let cbor = Cbor::checked(cbor)?;
         Ok(self.get_paths(cbor))
+    }
+
+    pub fn set(&self, cbor: &Cbor, new_val: &Cbor) -> CborOwned {
+        struct SetVisitor<'a> {
+            paths: Vec<Path>,
+            new_val: &'a Cbor,
+            pending_items: Vec<Vec<Cow<'a, Cbor>>>,
+            current_path: Path,
+            skip_end: bool,
+        }
+
+        impl<'a> SetVisitor<'a> {
+            pub fn new(paths: Vec<Path>, new_val: &'a Cbor) -> Self {
+                Self {
+                    paths,
+                    new_val,
+                    pending_items: vec![Vec::new()],
+                    current_path: Path::default(),
+                    skip_end: false,
+                }
+            }
+
+            pub fn get_cbor(&mut self) -> Option<CborOwned> {
+                match self.pending_items.pop() {
+                    Some(mut v) => v.pop().map(|c| c.into_owned()),
+                    None => None,
+                }
+            }
+        }
+
+        impl<'a> Visitor<'a, Error> for SetVisitor<'a> {
+            fn visit_simple(&mut self, item: TaggedItem<'a>) -> Result<(), Error> {
+                if let Some(pending_items) = self.pending_items.last_mut() {
+                    if self.paths.iter().any(|p| self.current_path == *p) {
+                        pending_items.push(Cow::Borrowed(self.new_val));
+                    } else {
+                        pending_items.push(Cow::Borrowed(item.cbor()));
+                    }
+                }
+                Ok(())
+            }
+
+            fn visit_array_begin(
+                &mut self,
+                array: TaggedItem<'a>,
+                size: Option<u64>,
+            ) -> Result<bool, Error> {
+                if self.paths.iter().any(|p| self.current_path.is_parent(p)) {
+                    let items = if let Some(size) = size {
+                        Vec::with_capacity(size as usize)
+                    } else {
+                        Vec::new()
+                    };
+                    self.pending_items.push(items);
+                    Ok(true)
+                } else {
+                    if let Some(pending_items) = self.pending_items.last_mut() {
+                        let item = if self.paths.iter().any(|p| self.current_path == *p) {
+                            self.new_val
+                        } else {
+                            array.cbor()
+                        };
+                        pending_items.push(Cow::Borrowed(item));
+                    }
+                    self.skip_end = true;
+                    Ok(false)
+                }
+            }
+
+            fn visit_array_index(
+                &mut self,
+                _array: TaggedItem<'a>,
+                index: u64,
+            ) -> Result<bool, Error> {
+                if index > 0 {
+                    self.current_path.pop();
+                }
+                self.current_path.append_idx(index as usize);
+                Ok(true)
+            }
+
+            fn visit_array_end(&mut self, _array: TaggedItem<'a>) -> Result<(), Error> {
+                if self.skip_end {
+                    self.skip_end = false;
+                    return Ok(());
+                }
+
+                if let Some(pending_items) = self.pending_items.pop() {
+                    self.current_path.pop();
+                    let item = CborBuilder::new().write_array(None, |builder| {
+                        for item in pending_items.into_iter() {
+                            builder.write_item(item.as_ref());
+                        }
+                    });
+                    if let Some(pending_items) = self.pending_items.last_mut() {
+                        pending_items.push(Cow::Owned(item));
+                    }
+                }
+                Ok(())
+            }
+
+            fn visit_dict_begin(
+                &mut self,
+                dict: TaggedItem<'a>,
+                size: Option<u64>,
+            ) -> Result<bool, Error> {
+                if self.paths.iter().any(|p| self.current_path.is_parent(p)) {
+                    let items = if let Some(size) = size {
+                        Vec::with_capacity((size * 2) as usize)
+                    } else {
+                        Vec::new()
+                    };
+                    self.pending_items.push(items);
+                    Ok(true)
+                } else {
+                    let item = if self.paths.iter().any(|p| self.current_path == *p) {
+                        self.new_val
+                    } else {
+                        dict.cbor()
+                    };
+
+                    if let Some(pending_items) = self.pending_items.last_mut() {
+                        pending_items.push(Cow::Borrowed(item));
+                    }
+                    self.skip_end = true;
+                    Ok(false)
+                }
+            }
+
+            fn visit_dict_key(
+                &mut self,
+                _dict: TaggedItem<'a>,
+                key: TaggedItem<'a>,
+                is_first: bool,
+            ) -> Result<bool, Error> {
+                if !is_first {
+                    self.current_path.pop();
+                }
+                let key = key.cbor();
+                if let Some(pending_items) = self.pending_items.last_mut() {
+                    pending_items.push(Cow::Borrowed(key));
+                }
+                self.current_path.append_key(key);
+                Ok(true)
+            }
+
+            fn visit_dict_end(&mut self, _dict: TaggedItem<'a>) -> Result<(), Error> {
+                if self.skip_end {
+                    self.skip_end = false;
+                    return Ok(());
+                }
+
+                if let Some(pending_items) = self.pending_items.pop() {
+                    self.current_path.pop();
+                    let item = CborBuilder::new().write_dict(None, |builder| {
+                        let mut iter = pending_items.into_iter();
+                        while let Some(key) = iter.next() {
+                            if let Some(value) = iter.next() {
+                                builder.with_cbor_key(
+                                    |b| b.write_item(key.as_ref()),
+                                    |b| b.write_item(value.as_ref()),
+                                );
+                            }
+                        }
+                    });
+                    if let Some(pending_items) = self.pending_items.last_mut() {
+                        pending_items.push(Cow::Owned(item));
+                    }
+                }
+                Ok(())
+            }
+        }
+
+        let paths = self.get_paths(cbor);
+        let mut visitor = SetVisitor::new(paths, new_val);
+        cbor.visit(&mut visitor).unwrap();
+        visitor.get_cbor().unwrap()
     }
 }
 
@@ -338,15 +570,15 @@ impl Segment {
     ) {
         match value.kind() {
             ItemKind::Array(a) => {
-                descendants.extend(a.enumerate().map(|(i, v)| (v, path.append_idx(i))));
+                descendants.extend(a.enumerate().map(|(i, v)| (v, path.child_from_idx(i))));
                 for (i, v) in a.enumerate() {
-                    Self::fetch_descendants_with_paths(descendants, v, &path.append_idx(i));
+                    Self::fetch_descendants_with_paths(descendants, v, &path.child_from_idx(i));
                 }
             }
             ItemKind::Dict(d) => {
-                descendants.extend(d.map(|(k, v)| (v, path.append_key(k))));
+                descendants.extend(d.map(|(k, v)| (v, path.child_from_key(k))));
                 for (k, v) in d {
-                    Self::fetch_descendants_with_paths(descendants, v, &path.append_key(k));
+                    Self::fetch_descendants_with_paths(descendants, v, &path.child_from_key(k));
                 }
             }
             _ => (),
@@ -424,7 +656,7 @@ impl KeySelector {
 
     fn get_path<'a>(&self, value: &'a Cbor, path: &Path) -> (Vec<&'a Cbor>, Vec<Path>) {
         self.read_single(value)
-            .map(|v| (vec![v], vec![path.append_key(&self.0)]))
+            .map(|v| (vec![v], vec![path.child_from_key(&self.0)]))
             .unwrap_or_else(|| (Vec::new(), Vec::new()))
     }
 }
@@ -444,10 +676,10 @@ impl WildcardSelector {
 
     fn get_paths<'a>(&self, value: &'a Cbor, path: &Path) -> (Vec<&'a Cbor>, Vec<Path>) {
         match value.kind() {
-            ItemKind::Dict(d) => d.map(|(k, v)| (v, path.append_key(k))).unzip(),
+            ItemKind::Dict(d) => d.map(|(k, v)| (v, path.child_from_key(k))).unzip(),
             ItemKind::Array(a) => a
                 .enumerate()
-                .map(|(i, v)| (v, path.append_idx(i)))
+                .map(|(i, v)| (v, path.child_from_idx(i)))
                 .unzip(),
             _ => (Vec::new(), Vec::new()),
         }
@@ -490,7 +722,7 @@ impl IndexSelector {
                 let index = normalize_index(self.0, len) as usize;
                 array
                     .nth(index)
-                    .map(|v| (vec![v], vec![path.append_idx(index)]))
+                    .map(|v| (vec![v], vec![path.child_from_idx(index)]))
                     .unwrap_or_else(|| (Vec::new(), Vec::new()))
             }
             _ => (Vec::new(), Vec::new()),
@@ -560,7 +792,7 @@ impl SliceSelector {
                         .skip(start)
                         .take(end - start)
                         .step_by(step as usize)
-                        .map(|(i, v)| (v, path.append_idx(i)))
+                        .map(|(i, v)| (v, path.child_from_idx(i)))
                         .unzip()
                 } else {
                     let actual_start = usize::min(
@@ -573,7 +805,7 @@ impl SliceSelector {
                         .skip(actual_start)
                         .take(actual_end - actual_start)
                         .step_by(-step as usize)
-                        .map(|(i, v)| (v, path.append_idx(i)))
+                        .map(|(i, v)| (v, path.child_from_idx(i)))
                         .unzip();
                     values.reverse();
                     paths.reverse();
@@ -624,7 +856,7 @@ impl FilterSelector {
                 .enumerate()
                 .filter_map(|(i, v)| {
                     if boolean_expr.read(root, v) {
-                        Some((v, path.append_idx(i)))
+                        Some((v, path.child_from_idx(i)))
                     } else {
                         None
                     }
@@ -633,7 +865,7 @@ impl FilterSelector {
             ItemKind::Dict(d) => d
                 .filter_map(|(k, v)| {
                     if boolean_expr.read(root, v) {
-                        Some((v, path.append_key(k)))
+                        Some((v, path.child_from_key(k)))
                     } else {
                         None
                     }

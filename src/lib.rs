@@ -147,7 +147,7 @@ pub fn diag_to_bytes(cbor_diag_str: &str) -> Vec<u8> {
 
 fn main() -> Result<(), Error> {
   let value = diag_to_bytes(
-  r#"{ 
+  r#"{
     "store": {
       "book": [
         { "category": "reference",
@@ -560,8 +560,8 @@ fn main() -> Result<(), Error> {
 
 pub mod builder;
 mod cbor_path;
-mod error;
 mod conversion;
+mod error;
 
 pub use cbor_path::*;
 pub use error::*;
