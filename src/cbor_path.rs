@@ -164,6 +164,18 @@ impl CborPath {
         cbor.try_into()
     }
 
+    /// Initialize a `CborPath` instance as a root path
+    #[inline]
+    pub fn root() -> Self {
+        Self(AbsolutePath(vec![]))
+    }
+
+    /// Return `true` if the CBORPath is a root path (`$`) else `false`
+    #[inline]
+    pub fn is_root(&self) -> bool {
+        self.0.get_segments().is_empty()
+    }
+
     /// Applies the CBORPath expression to the input `CBOR` document
     ///
     /// # Arguments
@@ -329,7 +341,7 @@ impl CborPath {
     #[inline]
     pub fn set<'a>(&self, cbor: &'a Cbor, new_val: &'a Cbor) -> Cow<'a, Cbor> {
         self.write(cbor, |_| Ok(Some(Cow::Borrowed(new_val))))
-        .expect("`set` function cannot fail because the map_function never fails")
+            .expect("`set` function cannot fail because the map_function never fails")
     }
 
     /// Sets the `new_val` this path points to in the provided `cbor` document
@@ -396,8 +408,13 @@ pub(crate) struct AbsolutePath(Vec<Segment>);
 
 impl AbsolutePath {
     #[inline]
-    pub(crate) fn new(segments: Vec<Segment>) -> Self {
+    pub fn new(segments: Vec<Segment>) -> Self {
         Self(segments)
+    }
+
+    #[inline]
+    pub fn get_segments(&self) -> &Vec<Segment> {
+        &self.0
     }
 
     pub fn read<'a>(&self, root: &'a Cbor) -> Vec<&'a Cbor> {
