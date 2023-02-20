@@ -1,6 +1,7 @@
 use crate::{
     builder::{self, IntoCborOwned, PathBuilder},
-    Error, write_visitor::WriteVisitor,
+    write_visitor::WriteVisitor,
+    Error,
 };
 use cbor_data::{Cbor, CborBuilder, CborOwned, ItemKind, Writer};
 use regex::Regex;
@@ -26,10 +27,7 @@ impl Display for PathElement {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             PathElement::Index(index) => write!(f, "{index}"),
-            PathElement::Key(key) => match key.kind() {
-                ItemKind::Str(str) => write!(f, "{}", str.as_cow()),
-                _ => write!(f, "{key:?}"),
-            },
+            PathElement::Key(key) => write!(f, "{key}"),
         }
     }
 }
@@ -99,14 +97,8 @@ impl Deref for Path {
 
 impl Display for Path {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let mut first = true;
         for element in &self.0 {
-            if first {
-                write!(f, "{element}")?;
-                first = false;
-            } else {
-                write!(f, ".{element}")?;
-            }
+            write!(f, "[{element}]")?;
         }
         Ok(())
     }
@@ -213,7 +205,7 @@ impl CborPath {
 
     pub fn write<'a, F>(&self, cbor: &'a Cbor, map_function: F) -> CborOwned
     where
-        F: FnMut(&'a Cbor) -> Cow<'a, Cbor>
+        F: FnMut(&'a Cbor) -> Option<Cow<'a, Cbor>>,
     {
         let paths = self.get_paths(cbor);
         let mut visitor = WriteVisitor::new(paths, map_function);
@@ -223,7 +215,12 @@ impl CborPath {
 
     #[inline]
     pub fn set(&self, cbor: &Cbor, new_val: &Cbor) -> CborOwned {
-        self.write(cbor,|_| Cow::Borrowed(new_val))
+        self.write(cbor, |_| Some(Cow::Borrowed(new_val)))
+    }
+
+    #[inline]
+    pub fn delete(&self, cbor: &Cbor) -> CborOwned {
+        self.write(cbor, |_| None)
     }
 }
 

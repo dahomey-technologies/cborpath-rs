@@ -17,3 +17,13 @@ pub fn cbor_to_diag(cbor: &Cbor) -> String {
 pub fn bytes_to_diag(cbor: &[u8]) -> String {
     parse_bytes(cbor).unwrap().to_diag()
 }
+
+pub fn log_try_init() {
+    let _ = env_logger::builder()
+        .format_target(false)
+        .format_timestamp(None)
+        .filter_level(log::LevelFilter::Trace)
+        .target(env_logger::Target::Stdout)
+        .is_test(true)
+        .try_init();
+}

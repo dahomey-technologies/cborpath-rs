@@ -12,7 +12,7 @@ fn array_append(cbor_path: &CborPath, cbor: &Cbor, value: &Cbor) -> (CborOwned, 
 
     let new_value = cbor_path.write(cbor, |old_value| {
         if let ItemKind::Array(array) = old_value.kind() {
-            Cow::Owned(CborBuilder::new().write_array(None, |builder| {
+            Some(Cow::Owned(CborBuilder::new().write_array(None, |builder| {
                 let mut size = 0;
                 for item in array {
                     size += 1;
@@ -21,10 +21,10 @@ fn array_append(cbor_path: &CborPath, cbor: &Cbor, value: &Cbor) -> (CborOwned, 
                 builder.write_item(value);
                 size += 1;
                 array_sizes.push(Some(size));
-            }))
+            })))
         } else {
             array_sizes.push(None);
-            Cow::Borrowed(old_value)
+            Some(Cow::Borrowed(old_value))
         }
     });
 

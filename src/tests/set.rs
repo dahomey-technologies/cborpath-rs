@@ -32,6 +32,17 @@ fn simple_map() -> Result<(), Error> {
 }
 
 #[test]
+fn map() {
+    let cbor = diag_to_cbor(r#"{"foo":{"a":{"b":1},"c":2}}"#);
+    let new_value: CborOwned = IntoCborOwned::into(12);
+
+    let cbor_path = CborPath::builder().key("foo").key("a").build();
+    let result = cbor_path.set(&cbor, &new_value);
+
+    assert_eq!(r#"{"foo":{"a":12,"c":2}}"#, cbor_to_diag(&result));
+}
+
+#[test]
 fn store() -> Result<(), Error> {
     let cbor = diag_to_cbor(
         r#"

@@ -4,18 +4,19 @@ use std::borrow::Cow;
 
 pub struct WriteVisitor<'a, F>
 where
-    F: FnMut(&'a Cbor) -> Cow<'a, Cbor>
+    F: FnMut(&'a Cbor) -> Option<Cow<'a, Cbor>>,
 {
     paths: Vec<Path>,
     map_function: F,
     pending_items: Vec<Vec<Cow<'a, Cbor>>>,
     current_path: Path,
     skip_end: bool,
+    is_key: bool,
 }
 
 impl<'a, F> WriteVisitor<'a, F>
 where
-    F: FnMut(&'a Cbor) -> Cow<'a, Cbor>
+    F: FnMut(&'a Cbor) -> Option<Cow<'a, Cbor>>,
 {
     pub fn new(paths: Vec<Path>, map_function: F) -> Self {
         Self {
@@ -24,6 +25,7 @@ where
             pending_items: vec![Vec::new()],
             current_path: Path::default(),
             skip_end: false,
+            is_key: false,
         }
     }
 
@@ -37,16 +39,30 @@ where
 
 impl<'a, F> Visitor<'a, Error> for WriteVisitor<'a, F>
 where
-    F: FnMut(&'a Cbor) -> Cow<'a, Cbor>
+    F: FnMut(&'a Cbor) -> Option<Cow<'a, Cbor>>,
 {
     fn visit_simple(&mut self, item: TaggedItem<'a>) -> Result<(), Error> {
         if let Some(pending_items) = self.pending_items.last_mut() {
+            log::trace!(
+                "[visit_simple] current_path:{}, item:{}",
+                self.current_path,
+                item.cbor()
+            );
             if self.paths.iter().any(|p| self.current_path == *p) {
-                pending_items.push((self.map_function)(item.cbor()));
+                match (self.map_function)(item.cbor()) {
+                    Some(new_value) => pending_items.push(new_value),
+                    None => {
+                        if self.is_key {
+                            // remove the key that was just added
+                            pending_items.pop();
+                        }
+                    }
+                }
             } else {
                 pending_items.push(Cow::Borrowed(item.cbor()));
             }
         }
+        self.is_key = false;
         Ok(())
     }
 
@@ -68,9 +84,14 @@ where
                 let item = if self.paths.iter().any(|p| self.current_path == *p) {
                     (self.map_function)(array.cbor())
                 } else {
-                    Cow::Borrowed(array.cbor())
+                    Some(Cow::Borrowed(array.cbor()))
                 };
-                pending_items.push(item);
+                if let Some(item) = item {
+                    pending_items.push(item);
+                } else if self.is_key {
+                    // remove the key that was just added
+                    pending_items.pop();
+                }
             }
             self.skip_end = true;
             Ok(false)
@@ -118,11 +139,16 @@ where
             let item = if self.paths.iter().any(|p| self.current_path == *p) {
                 (self.map_function)(dict.cbor())
             } else {
-                Cow::Borrowed(dict.cbor())
+                Some(Cow::Borrowed(dict.cbor()))
             };
 
             if let Some(pending_items) = self.pending_items.last_mut() {
-                pending_items.push(item);
+                if let Some(item) = item {
+                    pending_items.push(item);
+                } else if self.is_key {
+                    // remove the key that was just added
+                    pending_items.pop();
+                }
             }
             self.skip_end = true;
             Ok(false)
@@ -138,11 +164,17 @@ where
         if !is_first {
             self.current_path.pop();
         }
+        log::trace!(
+            "[visit_dict_key] current_path:{}, key:{}",
+            self.current_path,
+            key.cbor()
+        );
         let key = key.cbor();
         if let Some(pending_items) = self.pending_items.last_mut() {
             pending_items.push(Cow::Borrowed(key));
         }
         self.current_path.append_key(key);
+        self.is_key = true;
         Ok(true)
     }
 
