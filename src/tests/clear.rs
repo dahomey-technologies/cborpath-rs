@@ -35,8 +35,8 @@ fn clear<'a>(cbor_path: &CborPath, cbor: &'a Cbor) -> (Cow<'a, Cbor>, usize) {
         };
 
         log::trace!("old_value:{old_value}, new_value:{new_value}");
-        Some(Cow::Owned(new_value))
-    });
+        Ok(Some(Cow::Owned(new_value)))
+    }).unwrap();
 
     (new_value, num_cleared_values)
 }

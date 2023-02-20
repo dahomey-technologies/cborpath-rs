@@ -7,26 +7,35 @@ use cbor_data::{Cbor, CborBuilder, ItemKind, Writer};
 use std::borrow::Cow;
 
 /// Based on https://redis.io/commands/json.arrappend/
-fn array_append<'a>(cbor_path: &CborPath, cbor: &'a Cbor, value: &'a Cbor) -> (Cow<'a, Cbor>, Vec::<Option<usize>>) {
+fn array_append<'a>(
+    cbor_path: &CborPath,
+    cbor: &'a Cbor,
+    value: &'a Cbor,
+) -> (Cow<'a, Cbor>, Vec<Option<usize>>) {
     let mut array_sizes = Vec::<Option<usize>>::new();
 
-    let new_value = cbor_path.write(cbor, |old_value| {
-        if let ItemKind::Array(array) = old_value.kind() {
-            Some(Cow::Owned(CborBuilder::new().write_array(None, |builder| {
-                let mut size = 0;
-                for item in array {
-                    size += 1;
-                    builder.write_item(item);
-                }
-                builder.write_item(value);
-                size += 1;
-                array_sizes.push(Some(size));
-            })))
-        } else {
-            array_sizes.push(None);
-            Some(Cow::Borrowed(old_value))
-        }
-    });
+    let new_value = cbor_path
+        .write(cbor, |old_value| {
+            if let ItemKind::Array(array) = old_value.kind() {
+                Ok(Some(Cow::Owned(CborBuilder::new().write_array(
+                    None,
+                    |builder| {
+                        let mut size = 0;
+                        for item in array {
+                            size += 1;
+                            builder.write_item(item);
+                        }
+                        builder.write_item(value);
+                        size += 1;
+                        array_sizes.push(Some(size));
+                    },
+                ))))
+            } else {
+                array_sizes.push(None);
+                Ok(Some(Cow::Borrowed(old_value)))
+            }
+        })
+        .unwrap();
 
     (new_value, array_sizes)
 }

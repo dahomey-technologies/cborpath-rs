@@ -4,7 +4,7 @@ use std::borrow::Cow;
 
 pub struct WriteVisitor<'a, F>
 where
-    F: FnMut(&'a Cbor) -> Option<Cow<'a, Cbor>>,
+    F: FnMut(&'a Cbor) -> Result<Option<Cow<'a, Cbor>>, Error>,
 {
     paths: Vec<Path>,
     map_function: F,
@@ -16,7 +16,7 @@ where
 
 impl<'a, F> WriteVisitor<'a, F>
 where
-    F: FnMut(&'a Cbor) -> Option<Cow<'a, Cbor>>,
+    F: FnMut(&'a Cbor) -> Result<Option<Cow<'a, Cbor>>, Error>,
 {
     pub fn new(paths: Vec<Path>, map_function: F) -> Self {
         Self {
@@ -29,17 +29,20 @@ where
         }
     }
 
-    pub fn get_cbor(&mut self) -> Option<CborOwned> {
+    pub fn get_cbor(&mut self) -> CborOwned {
         match self.pending_items.pop() {
-            Some(mut v) => v.pop().map(|c| c.into_owned()),
-            None => None,
+            Some(mut v) => match v.pop().map(|c| c.into_owned()) {
+                Some(v) => v,
+                None => unreachable!(),
+            },
+            None => unreachable!(),
         }
     }
 }
 
 impl<'a, F> Visitor<'a, Error> for WriteVisitor<'a, F>
 where
-    F: FnMut(&'a Cbor) -> Option<Cow<'a, Cbor>>,
+    F: FnMut(&'a Cbor) -> Result<Option<Cow<'a, Cbor>>, Error>,
 {
     fn visit_simple(&mut self, item: TaggedItem<'a>) -> Result<(), Error> {
         if let Some(pending_items) = self.pending_items.last_mut() {
@@ -49,7 +52,7 @@ where
                 item.cbor()
             );
             if self.paths.iter().any(|p| self.current_path == *p) {
-                match (self.map_function)(item.cbor()) {
+                match (self.map_function)(item.cbor())? {
                     Some(new_value) => pending_items.push(new_value),
                     None => {
                         if self.is_key {
@@ -82,7 +85,7 @@ where
         } else {
             if let Some(pending_items) = self.pending_items.last_mut() {
                 let item = if self.paths.iter().any(|p| self.current_path == *p) {
-                    (self.map_function)(array.cbor())
+                    (self.map_function)(array.cbor())?
                 } else {
                     Some(Cow::Borrowed(array.cbor()))
                 };
@@ -137,7 +140,7 @@ where
             Ok(true)
         } else {
             let item = if self.paths.iter().any(|p| self.current_path == *p) {
-                (self.map_function)(dict.cbor())
+                (self.map_function)(dict.cbor())?
             } else {
                 Some(Cow::Borrowed(dict.cbor()))
             };

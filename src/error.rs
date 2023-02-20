@@ -14,6 +14,9 @@ pub enum Error {
     /// # See
     /// [`CborPath::from_bytes`](crate::CborPath::from_bytes)
     Parsing(String),
+    /// Raised if an error occurs while calling [`CborPath::write`](crate::CborPath::write) 
+    /// or [`CborPath::write_from_bytes`](crate::CborPath::write_from_bytes)
+    Write(String,)
 }
 
 impl From<str::Utf8Error> for Error {
