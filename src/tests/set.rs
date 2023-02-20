@@ -1,12 +1,12 @@
 use crate::{
     builder::{segment, IntoCborOwned},
     tests::util::{cbor_to_diag, diag_to_cbor},
-    CborPath, Error,
+    CborPath,
 };
 use cbor_data::CborOwned;
 
 #[test]
-fn simple_array() -> Result<(), Error> {
+fn simple_array() {
     let cbor = diag_to_cbor(r#"["a", "b", "c"]"#);
     let new_value: CborOwned = IntoCborOwned::into("d");
 
@@ -14,12 +14,10 @@ fn simple_array() -> Result<(), Error> {
     let result = cbor_path.set(&cbor, &new_value);
 
     assert_eq!(r#"["a","d","c"]"#, cbor_to_diag(&result));
-
-    Ok(())
 }
 
 #[test]
-fn simple_map() -> Result<(), Error> {
+fn simple_map() {
     let cbor = diag_to_cbor(r#"{"a":1,"b":2}"#);
     let new_value: CborOwned = IntoCborOwned::into(3);
 
@@ -27,8 +25,6 @@ fn simple_map() -> Result<(), Error> {
     let result = cbor_path.set(&cbor, &new_value);
 
     assert_eq!(r#"{"a":1,"b":3}"#, cbor_to_diag(&result));
-
-    Ok(())
 }
 
 #[test]
@@ -43,7 +39,7 @@ fn map() {
 }
 
 #[test]
-fn store() -> Result<(), Error> {
+fn store() {
     let cbor = diag_to_cbor(
         r#"
     { 
@@ -93,8 +89,17 @@ fn store() -> Result<(), Error> {
         diag_to_cbor(
             r#"{"store":{"book":["new_book","new_book","new_book","new_book"],"bicycle":{"color":"red","price":399}}}"#
         ),
-        result
+        result.into_owned()
     );
+}
 
-    Ok(())
+#[test]
+fn no_match() {
+    let cbor = diag_to_cbor(r#"["a", "b", "c"]"#);
+    let new_value: CborOwned = IntoCborOwned::into("d");
+
+    let cbor_path = CborPath::builder().index(4).build();
+    let result = cbor_path.set(&cbor, &new_value);
+
+    assert_eq!(r#"["a","b","c"]"#, cbor_to_diag(&result));
 }

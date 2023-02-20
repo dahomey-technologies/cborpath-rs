@@ -2,11 +2,11 @@ use crate::{
     tests::util::{cbor_to_diag, diag_to_cbor, log_try_init},
     CborPath,
 };
-use cbor_data::{Cbor, CborBuilder, CborOwned, ItemKind, Writer};
+use cbor_data::{Cbor, CborBuilder, ItemKind, Writer};
 use std::borrow::Cow;
 
 /// Based on https://redis.io/commands/json.clear/
-fn clear(cbor_path: &CborPath, cbor: &Cbor) -> (CborOwned, usize) {
+fn clear<'a>(cbor_path: &CborPath, cbor: &'a Cbor) -> (Cow<'a, Cbor>, usize) {
     let mut num_cleared_values = 0;
     let new_value = cbor_path.write(cbor, |old_value| {
         let new_value = match old_value.kind() {

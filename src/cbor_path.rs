@@ -257,14 +257,19 @@ impl CborPath {
     /// if the CBORPath expression does not match the input value, 
     /// the input CBOR document will be returned.
     #[inline]
-    pub fn write<'a, F>(&self, cbor: &'a Cbor, map_function: F) -> CborOwned
+    pub fn write<'a, F>(&self, cbor: &'a Cbor, map_function: F) -> Cow<'a, Cbor>
     where
         F: FnMut(&'a Cbor) -> Option<Cow<'a, Cbor>>,
     {
         let paths = self.get_paths(cbor);
-        let mut visitor = WriteVisitor::new(paths, map_function);
-        cbor.visit(&mut visitor).unwrap();
-        visitor.get_cbor().unwrap()
+
+        if paths.is_empty() {
+            Cow::Borrowed(cbor)
+        } else {
+            let mut visitor = WriteVisitor::new(paths, map_function);
+            cbor.visit(&mut visitor).unwrap();
+            Cow::Owned(visitor.get_cbor().unwrap())
+        }
     }
 
     /// Replaces or deletes the value on the given path with the result of the `map_function`
@@ -283,7 +288,7 @@ impl CborPath {
     /// 
     /// Errors can only occur if the input buffer is not a valid `CBOR` document.
     #[inline]
-    pub fn write_from_bytes<'a, F>(&self, cbor: &'a [u8], mut map_function: F) -> Result<Vec<u8>, Error>
+    pub fn write_from_bytes<'a, F>(&self, cbor: &'a [u8], mut map_function: F) -> Result<Cow<'a, [u8]>, Error>
     where
         F: FnMut(&'a [u8]) -> Option<Cow<'a, [u8]>>,
     {
@@ -292,11 +297,17 @@ impl CborPath {
             Cow::Owned(bytes) => Cow::Owned(CborOwned::unchecked(bytes)),
         });
 
+        let bytes = cbor;
         let cbor = Cbor::checked(cbor)?;
         let paths = self.get_paths(cbor);
-        let mut visitor = WriteVisitor::new(paths, cbor_map_function);
-        cbor.visit(&mut visitor).unwrap();
-        Ok(visitor.get_cbor().unwrap().into_vec())
+
+        if paths.is_empty() {
+            Ok(Cow::Borrowed(bytes))
+        } else {
+            let mut visitor = WriteVisitor::new(paths, cbor_map_function);
+            cbor.visit(&mut visitor).unwrap();
+            Ok(Cow::Owned(visitor.get_cbor().unwrap().into_vec()))
+        }
     }
 
     /// Sets the `new_val` this path points to in the provided `cbor` document
@@ -312,7 +323,7 @@ impl CborPath {
     /// if the CBORPath expression does not match the input value, 
     /// the input CBOR document will be returned.
     #[inline]
-    pub fn set(&self, cbor: &Cbor, new_val: &Cbor) -> CborOwned {
+    pub fn set<'a>(&self, cbor: &'a Cbor, new_val: &'a Cbor) -> Cow<'a, Cbor> {
         self.write(cbor, |_| Some(Cow::Borrowed(new_val)))
     }
 
@@ -331,7 +342,7 @@ impl CborPath {
     /// 
     /// Errors can only occur if the input buffer is not a valid `CBOR` document.
     #[inline]
-    pub fn set_from_bytes<'a>(&self, cbor: &'a [u8], new_val: &'a [u8]) -> Result<Vec<u8>, Error> {
+    pub fn set_from_bytes<'a>(&self, cbor: &'a [u8], new_val: &'a [u8]) -> Result<Cow<'a, [u8]>, Error> {
         self.write_from_bytes(cbor, |_| Some(Cow::Borrowed(new_val)))
     }
 
@@ -347,7 +358,7 @@ impl CborPath {
     /// if the CBORPath expression does not match the input value, 
     /// the input CBOR document will be returned.
     #[inline]
-    pub fn delete(&self, cbor: &Cbor) -> CborOwned {
+    pub fn delete<'a>(&self, cbor: &'a Cbor) -> Cow<'a, Cbor> {
         self.write(cbor, |_| None)
     }
 
@@ -365,7 +376,7 @@ impl CborPath {
     /// 
     /// Errors can only occur if the input buffer is not a valid `CBOR` document.
     #[inline]
-    pub fn delete_from_bytes(&self, cbor: &[u8]) -> Result<Vec<u8>, Error> {
+    pub fn delete_from_byte<'a>(&self, cbor: &'a [u8]) -> Result<Cow<'a, [u8]>, Error> {
         self.write_from_bytes(cbor, |_| None)
     }
 }

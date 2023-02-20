@@ -3,11 +3,11 @@ use crate::{
     tests::util::{cbor_to_diag, diag_to_cbor},
     CborPath,
 };
-use cbor_data::{Cbor, CborBuilder, CborOwned, ItemKind, Writer};
+use cbor_data::{Cbor, CborBuilder, ItemKind, Writer};
 use std::borrow::Cow;
 
 /// Based on https://redis.io/commands/json.arrappend/
-fn array_append(cbor_path: &CborPath, cbor: &Cbor, value: &Cbor) -> (CborOwned, Vec::<Option<usize>>) {
+fn array_append<'a>(cbor_path: &CborPath, cbor: &'a Cbor, value: &'a Cbor) -> (Cow<'a, Cbor>, Vec::<Option<usize>>) {
     let mut array_sizes = Vec::<Option<usize>>::new();
 
     let new_value = cbor_path.write(cbor, |old_value| {
