@@ -141,6 +141,10 @@ impl CborPath {
     }
 
     /// Initialize a `CborPath` instance from a `CBOR binary buffer`
+    /// 
+    /// # Arguments
+    /// * `cbor` - the CBOR input document
+    /// 
     /// # Return
     /// A new `CborPath` instance or an error if the provided buffer is neither a valid `CBOR` buffer nor a valid `CBORPath` expression.
     #[inline]
@@ -150,6 +154,10 @@ impl CborPath {
     }
 
     /// Initialize a `CborPath` instance from a [`CBOR value`](https://docs.rs/cbor-data/latest/cbor_data/struct.Cbor.html) reference
+    /// 
+    /// # Arguments
+    /// * `cbor` - the CBOR input document
+    /// 
     /// # Return
     /// A new `CborPath` instance or an error if the provided buffer is the provided [`CBOR value`] is not a valid `CBORPath` expression.
     #[inline]
@@ -158,6 +166,10 @@ impl CborPath {
     }
 
     /// Applies the CBORPath expression to the input `CBOR` document
+    /// 
+    /// # Arguments
+    /// * `cbor` - the CBOR input document
+    /// 
     /// # Return
     /// A binarized `CBOR` document
     ///
@@ -171,6 +183,10 @@ impl CborPath {
     }
 
     /// Applies the CBORPath expression to the input `CBOR` document
+    /// 
+    /// # Arguments
+    /// * `cbor` - the CBOR input document
+    /// 
     /// # Return
     /// A binarized `CBOR` document.
     ///
@@ -194,6 +210,10 @@ impl CborPath {
     }
 
     /// Applies the CBORPath expression to the input `CBOR` document
+    /// 
+    /// # Arguments
+    /// * `cbor` - the CBOR input document
+    /// 
     /// # Return
     /// A path list to matched nodes.
     ///
@@ -205,9 +225,13 @@ impl CborPath {
     }
 
     /// Applies the CBORPath expression to the input `CBOR` document
+    /// 
+    /// # Arguments
+    /// * `cbor` - the CBOR input document
+    /// 
     /// # Return
     /// A path list to matched nodes.
-    ///
+    /// 
     /// The evaluation in itself does not raise any error:
     /// if the CBORPath expression does not match the input value, an empty list will be returned.
     ///
@@ -220,13 +244,14 @@ impl CborPath {
 
     /// Replaces or deletes the value on the given path with the result of the `map_function`
     /// 
-    /// # Return
-    /// The updated CBOR document
     /// 
     /// # Arguments
     /// * `cbor` - the CBOR input document
     /// * `map_function` - Returns a converted CBOR sub-document to replace 
     /// the input CBOR sub-document or [`None`] to delete the input sub-document.
+    /// 
+    /// # Return
+    /// The updated CBOR document
     ///
     /// The evaluation in itself does not raise any error:
     /// if the CBORPath expression does not match the input value, 
@@ -244,13 +269,13 @@ impl CborPath {
 
     /// Replaces or deletes the value on the given path with the result of the `map_function`
     /// 
-    /// # Return
-    /// The updated CBOR document
-    /// 
     /// # Arguments
     /// * `cbor` - the CBOR input document
     /// * `map_function` - Returns a converted CBOR sub-document to replace 
     /// the input CBOR sub-document or [`None`] to delete the input sub-document.
+    /// 
+    /// # Return
+    /// The updated CBOR document
     ///
     /// The evaluation in itself does not raise any error:
     /// if the CBORPath expression does not match the input value, 
@@ -276,12 +301,12 @@ impl CborPath {
 
     /// Sets the `new_val` this path points to in the provided `cbor` document
     /// 
-    /// # Return
-    /// The updated CBOR document
-    /// 
     /// # Arguments
     /// * `cbor` - the CBOR input document
     /// * `new_val` - the CBOR sub-document to set
+    /// 
+    /// # Return
+    /// The updated CBOR document
     ///
     /// The evaluation in itself does not raise any error:
     /// if the CBORPath expression does not match the input value, 
@@ -293,12 +318,12 @@ impl CborPath {
 
     /// Sets the `new_val` this path points to in the provided `cbor` document
     /// 
-    /// # Return
-    /// The updated CBOR document
-    /// 
     /// # Arguments
     /// * `cbor` - the CBOR input document
     /// * `new_val` - the CBOR sub-document to set
+    /// 
+    /// # Return
+    /// The updated CBOR document
     ///
     /// The evaluation in itself does not raise any error:
     /// if the CBORPath expression does not match the input value, 
@@ -312,11 +337,11 @@ impl CborPath {
 
     /// Deletes the CBOR sub-documents this path points to in the provided ` cbor`document
     /// 
-    /// # Return
-    /// The updated CBOR document
-    /// 
     /// # Arguments
     /// * `cbor` - the CBOR input document
+    /// 
+    /// # Return
+    /// The updated CBOR document
     ///
     /// The evaluation in itself does not raise any error:
     /// if the CBORPath expression does not match the input value, 
@@ -328,11 +353,11 @@ impl CborPath {
 
     /// Deletes the CBOR sub-documents this path points to in the provided ` cbor`document
     /// 
-    /// # Return
-    /// The updated CBOR document
-    /// 
     /// # Arguments
     /// * `cbor` - the CBOR input document
+    /// 
+    /// # Return
+    /// The updated CBOR document
     ///
     /// The evaluation in itself does not raise any error:
     /// if the CBORPath expression does not match the input value, 
