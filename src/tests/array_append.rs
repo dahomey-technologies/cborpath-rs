@@ -3,7 +3,7 @@ use crate::{
     tests::util::{cbor_to_diag, diag_to_cbor},
     CborPath,
 };
-use cbor_data::{Cbor, CborBuilder, ItemKind, Writer};
+use cbor_data::{Cbor, CborBuilder, ItemKind, Writer, CborOwned};
 use std::borrow::Cow;
 
 /// Based on https://redis.io/commands/json.arrappend/
@@ -11,7 +11,7 @@ fn array_append<'a>(
     cbor_path: &CborPath,
     cbor: &'a Cbor,
     value: &'a Cbor,
-) -> (Cow<'a, Cbor>, Vec<Option<usize>>) {
+) -> (Option<CborOwned>, Vec<Option<usize>>) {
     let mut array_sizes = Vec::<Option<usize>>::new();
 
     let new_value = cbor_path
@@ -49,7 +49,7 @@ fn simple_array() {
     let cbor_path = CborPath::builder().build();
     let (new_value, array_sizes) = array_append(&cbor_path, &cbor, &new_value);
 
-    assert_eq!(r#"["a","b","c","d"]"#, cbor_to_diag(&new_value));
+    assert_eq!(r#"["a","b","c","d"]"#, cbor_to_diag(&new_value.unwrap()));
     assert_eq!(vec![Some(4)], array_sizes);
 }
 
@@ -62,7 +62,7 @@ fn deep_array() {
     let cbor_path = CborPath::builder().key("foo").build();
     let (new_value, array_sizes) = array_append(&cbor_path, &cbor, &new_value);
 
-    assert_eq!(r#"{"foo":["a","b","c","d"]}"#, cbor_to_diag(&new_value));
+    assert_eq!(r#"{"foo":["a","b","c","d"]}"#, cbor_to_diag(&new_value.unwrap()));
     assert_eq!(vec![Some(4)], array_sizes);
 }
 
@@ -77,7 +77,7 @@ fn multiple_arrays() {
 
     assert_eq!(
         r#"{"foo":["a","b","c","d"],"bar":[1,2,3,4,"d"]}"#,
-        cbor_to_diag(&new_value)
+        cbor_to_diag(&new_value.unwrap())
     );
     assert_eq!(vec![Some(4), Some(5)], array_sizes);
 }
@@ -91,6 +91,6 @@ fn not_an_array() {
     let cbor_path = CborPath::builder().wildcard().build();
     let (new_value, array_sizes) = array_append(&cbor_path, &cbor, &new_value);
 
-    assert_eq!(r#"{"foo":12,"bar":[1,2,3,"d"]}"#, cbor_to_diag(&new_value));
+    assert_eq!(r#"{"foo":12,"bar":[1,2,3,"d"]}"#, cbor_to_diag(&new_value.unwrap()));
     assert_eq!(vec![None, Some(4)], array_sizes);
 }
