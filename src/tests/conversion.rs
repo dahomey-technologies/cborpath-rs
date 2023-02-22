@@ -20,7 +20,7 @@ fn from_bytes(cbor_diag_str: &str) -> Result<CborPath, Error> {
 #[test]
 fn cbor_path_from_value() -> Result<(), Error> {
     let cbor_path: CborPath = from_value(r#""$""#)?;
-    assert_eq!(CborPath::builder().build(), cbor_path);
+    assert_eq!(CborPath::root(), cbor_path);
 
     let cbor_path: CborPath = from_value(r#"["$", "a"]"#)?;
     assert_eq!(CborPath::builder().key("a").build(), cbor_path);
@@ -103,7 +103,7 @@ fn cbor_path_from_value() -> Result<(), Error> {
 #[test]
 fn cbor_path_from_bytes() -> Result<(), Error> {
     let cbor_path: CborPath = from_bytes(r#""$""#)?;
-    assert_eq!(CborPath::builder().build(), cbor_path);
+    assert_eq!(CborPath::root(), cbor_path);
 
     let cbor_path: CborPath = from_bytes(r#"["$", "a"]"#)?;
     assert_eq!(CborPath::builder().key("a").build(), cbor_path);

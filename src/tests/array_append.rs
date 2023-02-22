@@ -46,7 +46,7 @@ fn simple_array() {
     let new_value = IntoCborOwned::into("d");
 
     // ["$"]
-    let cbor_path = CborPath::builder().build();
+    let cbor_path = CborPath::root();
     let (new_value, array_sizes) = array_append(&cbor_path, &cbor, &new_value);
 
     assert_eq!(r#"["a","b","c","d"]"#, cbor_to_diag(&new_value.unwrap()));

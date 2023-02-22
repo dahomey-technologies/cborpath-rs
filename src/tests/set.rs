@@ -10,7 +10,7 @@ fn primitive() {
     let cbor = diag_to_cbor(r#"12"#);
     let new_value: CborOwned = IntoCborOwned::into(13);
 
-    let cbor_path = CborPath::builder().build();
+    let cbor_path = CborPath::root();
     let result = cbor_path.set(&cbor, &new_value).unwrap();
 
     assert_eq!(r#"13"#, cbor_to_diag(&result));

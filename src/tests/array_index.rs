@@ -35,7 +35,7 @@ fn simple_array() {
     let value = IntoCborOwned::into("c");
 
     // ["$"]
-    let cbor_path = CborPath::builder().build();
+    let cbor_path = CborPath::root();
     let results = array_index(&cbor_path, &cbor, &value, 0, 3);
 
     assert_eq!(vec![Some(2)], results);
