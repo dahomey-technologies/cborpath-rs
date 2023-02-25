@@ -180,6 +180,9 @@ impl TryFrom<&Cbor> for SegmentForConversion {
                         SegmentForConversion::Selectors(selectors) => {
                             Ok(SegmentForConversion::Descendant(selectors))
                         }
+                        SegmentForConversion::Selector(selector) => {
+                            Ok(SegmentForConversion::Descendant(vec![selector]))
+                        }
                         _ => Err(Error::Conversion(
                             "Expected selector or array of selectors in a descendant segment"
                                 .to_owned(),

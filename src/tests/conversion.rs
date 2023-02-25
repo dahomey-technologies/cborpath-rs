@@ -97,6 +97,22 @@ fn cbor_path_from_value() -> Result<(), Error> {
         cbor_path,
     );
 
+    let cbor_path: CborPath = from_value(r#"["$",{"..":"a"}]"#)?;
+    assert_eq!(
+        CborPath::builder()
+            .descendant(segment().key("a"))
+            .build(),
+        cbor_path,
+    );
+
+    let cbor_path: CborPath = from_value(r#"["$",{"..":["a","b"]}]"#)?;
+    assert_eq!(
+        CborPath::builder()
+            .descendant(segment().key("a").key("b"))
+            .build(),
+        cbor_path,
+    );
+
     Ok(())
 }
 
