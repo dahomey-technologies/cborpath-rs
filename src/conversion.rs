@@ -1,9 +1,9 @@
 use crate::{
     builder, AbsolutePath, BooleanExpr, CborPath, Comparable, ComparisonExpr, ComparisonOperator,
-    Error, FilterSelector, Function, IndexSelector, KeySelector, FilterPath, RelativePath, Segment,
+    Error, FilterPath, FilterSelector, Function, IndexSelector, KeySelector, RelativePath, Segment,
     Selector, SingularPath, SingularSegment, SliceSelector,
 };
-use cbor_data::{Cbor, ItemKind, ArrayIter};
+use cbor_data::{ArrayIter, Cbor, ItemKind};
 
 impl TryFrom<&Cbor> for CborPath {
     type Error = Error;
@@ -252,11 +252,7 @@ impl TryFrom<&Cbor> for SliceSelector {
                         _ => return Err(Error::Conversion("Expected integer".to_owned())),
                     };
 
-                    Ok(SliceSelector::new(
-                        start as isize,
-                        end as isize,
-                        step as isize,
-                    ))
+                    Ok(SliceSelector::new(start, end, step))
                 }
                 _ => Err(Error::Conversion("Expected 3-elements array".to_owned())),
             }

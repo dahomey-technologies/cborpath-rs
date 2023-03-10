@@ -3,7 +3,7 @@ use cbor_diag::{parse_diag, parse_bytes};
 
 pub fn diag_to_cbor(cbor_diag_str: &str) -> CborOwned {
     let buf = diag_to_bytes(cbor_diag_str);
-    CborOwned::canonical(&buf).unwrap()
+    CborOwned::canonical(buf).unwrap()
 }
 
 pub fn diag_to_bytes(cbor_diag_str: &str) -> Vec<u8> {
