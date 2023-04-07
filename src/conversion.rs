@@ -461,8 +461,9 @@ impl TryFrom<&Cbor> for Comparable {
                         value.try_into()?,
                     )))),
                     Some("count") => Ok(Comparable::Function(Function::Count(value.try_into()?))),
+                    Some("value") => Ok(Comparable::Function(Function::Value(value.try_into()?))),
                     _ => Err(Error::Conversion(
-                        "Expected `length` or `count` function".to_owned(),
+                        "Expected `length`, `count` or `value` function".to_owned(),
                     )),
                 }
             }

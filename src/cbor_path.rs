@@ -1084,6 +1084,7 @@ pub(crate) enum Function {
     Length(Box<Comparable>),
     Count(FilterPath),
     Regex(Box<Comparable>, Regex),
+    Value(FilterPath)
 }
 
 impl PartialEq for Function {
@@ -1091,6 +1092,7 @@ impl PartialEq for Function {
         match (self, other) {
             (Self::Length(l0), Self::Length(r0)) => l0 == r0,
             (Self::Count(l0), Self::Count(r0)) => l0 == r0,
+            (Self::Value(l0), Self::Value(r0)) => l0 == r0,
             (Self::Regex(l0, l1), Self::Regex(r0, r1)) => l0 == r0 && l1.as_str() == r1.as_str(),
             _ => false,
         }
@@ -1141,7 +1143,16 @@ impl Function {
             }
             Function::Count(path) => {
                 Some(CborBuilder::new().write_pos(path.evaluate(root, current).len() as u64, None))
-            }
+            },
+            Function::Value(path) => {
+                let values = path.evaluate(root, current);
+                if values.len() == 1 {
+                    Some(values[0].to_owned())
+                } else {
+                    None
+                }
+
+            },
             _ => None,
         }
     }

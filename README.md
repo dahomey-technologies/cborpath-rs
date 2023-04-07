@@ -73,6 +73,7 @@ A `comparable` is an operand of a `filter` comparison or an argument of a functi
 | `["$", <singular-segments>]`<br>`["@", <singular-segments>]` | a singular path (path which procudes a nodelist containing at most one node)                             |
 | `{"length": <comparable>}`                    | length function to compute the length of a value.<br>returns an unsigned integer                                        |
 | `{"count": <path>}`                           | count function to compute the number of nodes in a path.<br>returns an unsigned integer                                 |
+| `{"value": <path>}`                           | value function to get the number of a single node path.<br>returns a `CBOR` value                                       |
 
 ### Singular Segment
 A `singular segment` produces a nodelist containing at most one node.

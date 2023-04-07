@@ -2,7 +2,7 @@ use super::util::{diag_to_bytes, diag_to_cbor};
 use crate::{
     builder::{
         abs_path, count, eq, gt, gte, length, lt, lte, neq, rel_path, segment, sing_abs_path,
-        sing_rel_path, val,
+        sing_rel_path, val, value,
     },
     CborPath, Error,
 };
@@ -89,6 +89,18 @@ fn cbor_path_from_value() -> Result<(), Error> {
         cbor_path,
     );
 
+    let cbor_path: CborPath =
+        from_value(r##"["$", {"?": {"==": [{"value": ["@", {"..": "color"}]}, "red"]}}]"##)?;
+    assert_eq!(
+        CborPath::builder()
+            .filter(eq(
+                value(rel_path().descendant(segment().key("color"))),
+                val("red")
+            ))
+            .build(),
+        cbor_path,
+    );
+
     let cbor_path: CborPath = from_value(r#"["$", ["a", "b"]]"#)?;
     assert_eq!(
         CborPath::builder()
@@ -99,9 +111,7 @@ fn cbor_path_from_value() -> Result<(), Error> {
 
     let cbor_path: CborPath = from_value(r#"["$",{"..":"a"}]"#)?;
     assert_eq!(
-        CborPath::builder()
-            .descendant(segment().key("a"))
-            .build(),
+        CborPath::builder().descendant(segment().key("a")).build(),
         cbor_path,
     );
 
@@ -184,6 +194,18 @@ fn cbor_path_from_bytes() -> Result<(), Error> {
     assert_eq!(
         CborPath::builder()
             .filter(gte(count(rel_path().wildcard().key("authors")), val(5)))
+            .build(),
+        cbor_path,
+    );
+
+    let cbor_path: CborPath =
+        from_bytes(r##"["$", {"?": {"==": [{"value": ["@", {"..": "color"}]}, "red"]}}]"##)?;
+    assert_eq!(
+        CborPath::builder()
+            .filter(eq(
+                value(rel_path().descendant(segment().key("color"))),
+                val("red")
+            ))
             .build(),
         cbor_path,
     );

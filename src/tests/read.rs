@@ -522,6 +522,33 @@ fn count() -> Result<(), Error> {
 }
 
 #[test]
+fn value_function() -> Result<(), Error> {
+    let value = diag_to_bytes(r#"["a","b","c"]"#);
+
+    // ["$", {"?": {"==": [{"value": "@"}, "a"]}}]
+    let cbor_path = CborPath::builder()
+        .filter(eq(crate::builder::value(rel_path()), val("a")))
+        .build();
+    let result = cbor_path.read_from_bytes(&value)?;
+    assert_eq!(
+        diag_to_bytes(r#"["a"]"#),
+        result
+    );
+
+    // ["$", {"?": {"==": [{"value": "@"}, "d"]}}]
+    let cbor_path = CborPath::builder()
+        .filter(eq(crate::builder::value(rel_path()), val("d")))
+        .build();
+    let result = cbor_path.read_from_bytes(&value)?;
+    assert_eq!(
+        diag_to_bytes(r#"[]"#),
+        result
+    );
+
+    Ok(())
+}
+
+#[test]
 fn filter_root_current() -> Result<(), Error> {
     let value = diag_to_bytes(
         r#"{

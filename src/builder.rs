@@ -14,6 +14,7 @@ use regex::Regex;
 /// This is the format of a `CBORPath` expression.
 /// It can also be passed to
 /// * the [`count`](count) function
+/// * the [`value`](value) function
 /// * the [`filter`](SegmentBuilder::filter) selector.
 /// In this case the path is used in an existence test within the filter
 #[inline]
@@ -26,6 +27,7 @@ pub fn abs_path() -> PathBuilder {
 /// This is the format of a `CBORPath` expression.
 /// It can also be passed to
 /// * the [`count`](count) function
+/// * the [`value`](value) function
 /// * the [`filter`](SegmentBuilder::filter) selector.
 /// In this case the path is used in an existence test within the filter
 #[inline]
@@ -281,6 +283,24 @@ pub fn count(path: PathBuilder) -> ComparableBuilder {
     ComparableBuilder::new(Comparable::Function(Function::Count(path.build_path())))
 }
 
+/// Represents the `vakye` function within a [`filter`](SegmentBuilder::filter)
+///
+/// The `value` function extension provides a way to convert a [`path`](PathBuilder)
+/// to a value and make that available for further processing in the filter expression:
+/// ```json
+/// ["$", {"?": {"==": [{"value": ["@", "color"]}, "red"]}}]
+/// ```
+///
+/// The result is a [`comparable`](ComparableBuilder).
+/// - If the argument contains a single node, the result is the value of the node.
+/// - If the argument is an empty node list or contains multiple nodes, the result is `None`.
+///
+/// Can be used wherever a [`comparable`](ComparableBuilder) is expected.
+#[inline]
+pub fn value(path: PathBuilder) -> ComparableBuilder {
+    ComparableBuilder::new(Comparable::Function(Function::Value(path.build_path())))
+}
+
 /// Represents a `path`
 ///
 /// A `path` expression is a `CBOR Array` which, when applied to a `CBOR` value, the
@@ -519,6 +539,7 @@ impl SegmentBuilder {
     /// * [`search`]
     /// * [`length`]
     /// * [`count`]
+    /// * [`value`]
     #[inline]
     pub fn filter(mut self, boolean_expr: BooleanExprBuilder) -> Self {
         self.selectors
@@ -567,7 +588,7 @@ impl From<PathBuilder> for BooleanExprBuilder {
 /// A `comparable` can be
 /// * A [`value`](val)
 /// * A [`singular path`](SingularPathBuilder)
-/// * A `function` ([`match`](_match), [`search`], [`length`] or [`count`])
+/// * A `function` ([`match`](_match), [`search`], [`length`], [`count`] or [`value`])
 pub struct ComparableBuilder {
     comparable: Comparable,
 }
